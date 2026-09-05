@@ -12,7 +12,7 @@ app.use(cors({
 }));
 
 
-export const httpServer = createServer(app);
+const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
