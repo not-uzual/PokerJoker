@@ -3,9 +3,9 @@
 import ChipsBox from "@/components/bettingControls";
 import PokerTable from "@/components/pokerTable";
 import { getPlayerId, getPlayerRoomData } from "@/lib/player";
-import { socket } from "../lib/socket.js";
 import { PLAYER_ACTION_DURATION_SECONDS } from "@/lib/gameConfig";
 import { useEffect, useState } from "react";
+import { socket } from "@/lib/socket";
 
 type Card = {
   suit: "H" | "D" | "C" | "S";
