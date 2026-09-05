@@ -1,0 +1,24 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "backend for poker game",
+  "license": "ISC",
+  "author": "Ujjwal Sahu",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.1",
+    "nodemon": "^3.1.14",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
