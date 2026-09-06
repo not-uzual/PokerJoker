@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node src/server.ts"
+    "start": "node src/server.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
