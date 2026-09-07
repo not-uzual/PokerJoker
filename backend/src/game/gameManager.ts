@@ -79,4 +79,8 @@ export class GameManager {
   hasGame(gameId: string): boolean {
     return this.games.has(gameId);
   }
+
+  removeGame(gameId: string): void {
+    this.games.delete(gameId);
+  }
 }

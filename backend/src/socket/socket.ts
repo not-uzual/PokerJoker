@@ -6,11 +6,16 @@ import { CARD_PREVIEW_DURATION_MS, JOKER_DEAL_COUNTDOWN_MS, PLAYER_ACTION_DURATI
 type RoomPlayer = { playerId: string; name: string; socketId: string | undefined };
 type Room = { id: string; name: string; host: string; players: RoomPlayer[]; maxPlayers: number; status: "lobby" | "starting" | "in-progress" | "finished" };
 type GameTimers = Map<string, ReturnType<typeof setTimeout>>;
+const ROOM_CLEANUP_INTERVAL_MS = 60_000;
 
 export function registerSocketHandlers(io: Server): void {
   const games = new GameManager();
   const rooms = new Map<string, Room>();
   const timers: GameTimers = new Map();
+
+  setInterval(() => {
+    cleanupEmptyRooms(io, games, rooms, timers);
+  }, ROOM_CLEANUP_INTERVAL_MS);
 
   io.on("connection", socket => {
     socket.emit("rooms-updated", [...rooms.values()]);
@@ -75,7 +80,7 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
     if (!displayName || !playerId) return socket.emit("room-error", { message: "Player name is required" });
     if (room.players.length >= room.maxPlayers) return socket.emit("room-error", { message: "Room is full" });
     try {
-      games.getGame(roomId).addPlayer(playerId, displayName, 1000);
+      games.getGame(roomId).addPlayer(playerId, displayName, 10000);
       room.players.push({ playerId, name: displayName, socketId: socket.id });
       games.setPlayerSocket(playerId, socket.id);
       socket.join(roomId);
@@ -108,6 +113,7 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
 
       if (room.players.length === 0) {
         clearGameTimer(roomId, timers);
+        games.removeGame(roomId);
         rooms.delete(roomId);
       } else {
         emitGameState(io, roomId, games, rooms);
@@ -117,6 +123,28 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
       socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to leave room" });
     }
   });
+}
+
+function cleanupEmptyRooms(
+  io: Server,
+  games: GameManager,
+  rooms: Map<string, Room>,
+  timers: GameTimers,
+): void {
+  let removedRoom = false;
+
+  for (const [roomId, room] of rooms) {
+    const hasConnectedPlayer = room.players.some(player => player.socketId !== undefined);
+    if (hasConnectedPlayer) continue;
+
+    clearGameTimer(roomId, timers);
+    for (const player of room.players) games.removePlayerSocket(player.playerId);
+    games.removeGame(roomId);
+    rooms.delete(roomId);
+    removedRoom = true;
+  }
+
+  if (removedRoom) io.emit("rooms-updated", [...rooms.values()]);
 }
 
 function registerGameEvents(io: Server, socket: Socket, games: GameManager, rooms: Map<string, Room>, timers: GameTimers): void {
