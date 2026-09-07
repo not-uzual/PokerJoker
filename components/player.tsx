@@ -6,6 +6,7 @@ type PlayerProps = {
   y: number;
   name?: string;
   isOccupied: boolean;
+  isBankrupt: boolean;
   isActive: boolean;
   isDealer: boolean;
 };
@@ -17,11 +18,14 @@ export default function Player({
   isOccupied,
   isActive,
   isDealer,
+  isBankrupt
 }: PlayerProps) {
   return (
     <div
       className={`absolute z-10 flex size-20 justify-center rounded-full border-4 ${
-        isActive
+        isBankrupt
+          ? "border-red-300 bg-red-600"
+          : isActive
           ? "border-green-400 bg-green-500"
           : isOccupied
             ? "border-white bg-white"

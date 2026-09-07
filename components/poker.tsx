@@ -4,8 +4,11 @@ import ChipsBox from "@/components/bettingControls";
 import PokerTable from "@/components/pokerTable";
 import { getPlayerId, getPlayerRoomData } from "@/lib/player";
 import { PLAYER_ACTION_DURATION_SECONDS } from "@/lib/gameConfig";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { socket } from "@/lib/socket";
+import { useGame } from "./contexts/gameContext";
+import LogMessage, { type GameLogEntry } from "./logMessage";
 
 type Card = {
   suit: "H" | "D" | "C" | "S";
@@ -30,20 +33,25 @@ type GameState = {
   dealerIndex: number;
   turnEndsAt: number | null;
   communityCards: Card[];
-  players: Array<{
+  players: Array<Player>;
+  showdownResults: Array<{
+    playerId: string;
+    amountWon: number;
+    hand: { rank: string; cards: Card[] } | null;
+  }>;
+  logs: GameLogEntry[];
+};
+
+type Player = {
     id: string;
     name: string;
     chips: number;
     currentBet: number;
     totalBet: number;
     hand: Card[];
-  }>;
-  showdownResults: Array<{
-    playerId: string;
-    amountWon: number;
-    hand: { rank: string } | null;
-  }>;
-};
+    folded: boolean;
+    allIn: boolean;
+  }
 
 function GameStatus({ gameState }: { gameState: GameState }) {
   const [now, setNow] = useState(0);
@@ -125,6 +133,8 @@ function PlayerStats({
 }
 
 export default function PokerGame({ roomId }: PokerGameProps) {
+  const router = useRouter();
+  const {isJoined, setIsJoined} = useGame();
   const [canOpen, setCanOpen] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [playerId] = useState(() =>
@@ -133,6 +143,13 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   const [roomData] = useState<{ hostId?: string; players?: RoomPlayer[] }>(
     () => (typeof window === "undefined" ? {} : getPlayerRoomData()),
   );
+
+  useEffect(() => {
+    if(gameState?.phase === "starting") {
+      playSound("/startGame.mp3");
+    }
+  }, [gameState]);
+
   useEffect(() => {
     const checkSize = () => {
       setCanOpen(window.innerWidth > 1000 && window.innerHeight > 800);
@@ -149,16 +166,22 @@ export default function PokerGame({ roomId }: PokerGameProps) {
     const handleGameState = (state: GameState) => setGameState(state);
     const handleGameError = ({ message }: { message: string }) =>
       console.error(message);
+    const handleRoomLeft = () => {
+      localStorage.removeItem("player-room-data");
+      router.push("/");
+    };
 
     socket.on("game-state", handleGameState);
     socket.on("game-error", handleGameError);
+    socket.on("room-left", handleRoomLeft);
     socket.emit("register-player", { playerId: currentPlayerId });
 
     return () => {
       socket.off("game-state", handleGameState);
       socket.off("game-error", handleGameError);
+      socket.off("room-left", handleRoomLeft);
     };
-  }, []);
+  }, [router]);
 
   function sendAction(action: { type: string; amount?: number }) {
     socket.emit("game-action", { roomId, playerId, action });
@@ -173,13 +196,21 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   const canStartNextHand = isWaiting || gameState?.phase === "finished";
 
   function startGame() {
-    playSound("/startGame.mp3");
     socket.emit("start-game", { roomId, playerId });
+  }
+
+  function leaveRoom() {
+    setIsJoined(false)
+    localStorage.clear()
+    router.push('/')
+    socket.emit("leave-room", { roomId, playerId });
   }
 
   if (!canOpen) {
     return <div className="text-white">Screen is too small</div>;
   }
+
+
   return (
     <div className="flex-1 flex justify-center">
       <div className="relative h-200 w-250 flex justify-center items-center pt-5">
@@ -190,6 +221,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
             gameState?.players.map((player) => ({
               playerId: player.id,
               name: player.name,
+              isBankrupt: player.chips === 0,
             })) ??
             roomData.players ??
             []
@@ -197,6 +229,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
           activePlayerId={activePlayerId}
         />
         {gameState && <GameStatus gameState={gameState} />}
+        {gameState && <LogMessage logs={gameState.logs} />}
         {canStartNextHand && roomData.hostId === playerId && (
           <button
             type="button"
@@ -228,6 +261,14 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       {!isMyTurn && me && gameState && (
         <PlayerStats me={me} gameState={gameState} />
       )}
+
+      <button
+        type="button"
+        onClick={leaveRoom}
+        className="absolute right-20 top-15 rounded-sm bg-white p-2 font-bold text-red-600 hover:bg-red-300"
+      >
+        Leave
+      </button>
     </div>
   );
 }

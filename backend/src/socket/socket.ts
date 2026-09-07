@@ -28,7 +28,7 @@ export function registerSocketHandlers(io: Server): void {
       io.emit("rooms-updated", [...rooms.values()]);
     });
 
-    registerRoomEvents(io, socket, games, rooms);
+    registerRoomEvents(io, socket, games, rooms, timers);
     registerGameEvents(io, socket, games, rooms, timers);
 
     socket.on("disconnect", () => {
@@ -42,7 +42,7 @@ export function registerSocketHandlers(io: Server): void {
   });
 }
 
-function registerRoomEvents(io: Server, socket: Socket, games: GameManager, rooms: Map<string, Room>): void {
+function registerRoomEvents(io: Server, socket: Socket, games: GameManager, rooms: Map<string, Room>, timers: GameTimers): void {
   socket.on("create-room", ({ name, playerId, playerName }: { name: string; playerId: string; playerName: string }) => {
     const roomName = name?.trim();
     const displayName = playerName?.trim();
@@ -50,7 +50,7 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const room: Room = { id: roomId, name: roomName, host: playerId, players: [{ playerId, name: displayName, socketId: socket.id }], maxPlayers: 9, status: "lobby" };
     rooms.set(roomId, room);
-    games.createGame(roomId).addPlayer(playerId, displayName, 1000);
+    games.createGame(roomId).addPlayer(playerId, displayName, 10000);
     games.setPlayerSocket(playerId, socket.id);
     socket.join(roomId);
     io.emit("rooms-updated", [...rooms.values()]);
@@ -84,6 +84,37 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
       emitGameState(io, roomId, games, rooms);
     } catch (error) {
       socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to join room" });
+    }
+  });
+
+  socket.on("leave-room", ({ roomId, playerId }: { roomId: string; playerId: string }) => {
+    const room = rooms.get(roomId);
+    const roomPlayer = room?.players.find(player => player.playerId === playerId);
+    if (!room || !roomPlayer || roomPlayer.socketId !== socket.id) {
+      return socket.emit("room-error", { message: "You are not connected to this room" });
+    }
+
+    try {
+      games.getGame(roomId).removePlayer(playerId);
+      room.players = room.players.filter(player => player.playerId !== playerId);
+
+      if (room.host === playerId) {
+        room.host = room.players[0]?.playerId ?? "";
+      }
+
+      socket.leave(roomId);
+      games.removePlayerSocket(playerId);
+      socket.emit("room-left", { roomId });
+
+      if (room.players.length === 0) {
+        clearGameTimer(roomId, timers);
+        rooms.delete(roomId);
+      } else {
+        emitGameState(io, roomId, games, rooms);
+      }
+      io.emit("rooms-updated", [...rooms.values()]);
+    } catch (error) {
+      socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to leave room" });
     }
   });
 }

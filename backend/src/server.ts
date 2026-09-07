@@ -11,7 +11,6 @@ app.use(cors({
   origin: process.env.FRONTEND_URL
 }));
 
-
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {

@@ -102,6 +102,14 @@ export type ShowdownResult = {
   amountWon: number;
 };
 
+export type GameLogEntry = {
+  playerId: string;
+  playerName: string;
+  action: "fold" | "check" | "call" | "bet" | "raise" | "all-in" | "win";
+  amount?: number;
+  hand?: EvaluatedHand;
+};
+
 export type Pot = {
   amount: number;
   eligiblePlayerIds: string[];
@@ -121,6 +129,7 @@ export type GameState = {
   smallBlind: number;
   bigBlind: number;
   showdownResults: ShowdownResult[];
+  logs: GameLogEntry[];
   phase: GamePhase;
   turnEndsAt: number | null;
 };

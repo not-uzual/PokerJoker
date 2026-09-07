@@ -13,7 +13,7 @@ type Card = {
 type PokerTableProps = {
   communityCards: Card[];
   holeCards: Card[];
-  players: Array<{ playerId: string; name: string }>;
+  players: Array<{ playerId: string; name: string; isBankrupt?: boolean }>;
   activePlayerId?: string;
 };
 
@@ -51,13 +51,15 @@ export default function PokerTable({
               y={position.y}
               name={player?.name}
               isOccupied={Boolean(player)}
+              isBankrupt={player?.isBankrupt ?? false}
               isActive={player?.playerId === activePlayerId}
               isDealer={false}
             />
           );
         })}
 
-        {boardCardPositions.map((position, index) => {
+        <div className="absolute flex gap-1.5 bg-green-800 p-2 border-2 border-green-900 rounded-sm">
+          {boardCardPositions.map((position, index) => {
           const card = communityCards[index];
 
           return (
@@ -67,13 +69,14 @@ export default function PokerTable({
               alt={
                 card ? `${card.suit} ${card.rank}` : "Undealt community card"
               }
-              width={40}
-              height={60}
-              className="absolute h-15 w-10 rounded-[3px]"
+              width={50}
+              height={75}
+              className="rounded-[3px]"
               style={{ left: position.left > 0 ? position.left : undefined }}
             />
           );
         })}
+        </div>
         {holeCards.length > 0 && (
           <div className="absolute -right-20 z-20 flex gap-2">
             {holeCards.map((card) => (

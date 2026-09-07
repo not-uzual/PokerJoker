@@ -1,7 +1,7 @@
 import { Deck } from "./deck.js";
 import { postBlind, resetForNewHand } from "./betting.js";
 import { GameEngine } from "./gameEngine.js";
-import { assertCanAddPlayer, assertCanStart, getBigBlindIndex, getSmallBlindIndex } from "./gameRules.js";
+import { assertCanAddPlayer, assertCanStart, getBigBlindIndex, getNextPlayerIndex, getSmallBlindIndex } from "./gameRules.js";
 import { createPlayer } from "./player.js";
 import type { GameSnapshot, GameState, PlayerAction, PlayerState } from "./types.js";
 
@@ -15,7 +15,7 @@ export class Game {
     this.state = {
       deck: new Deck(), players, communityCards: [], pot: 0, currentBet: 0,
       minRaise: bigBlind, dealerIndex: 0, currentPlayerIndex: 0,
-      smallBlind, bigBlind, showdownResults: [], phase: "waiting", turnEndsAt: null,
+      smallBlind, bigBlind, showdownResults: [], logs: [], phase: "waiting", turnEndsAt: null,
     };
   }
 
@@ -25,7 +25,9 @@ export class Game {
   }
 
   removePlayer(id: string): void {
-    if (this.state.phase !== "waiting") throw new Error("Cannot remove players during a hand");
+    if (this.state.phase !== "waiting" && this.state.phase !== "finished") {
+      throw new Error("Cannot leave while a hand is in progress");
+    }
     this.state.players = this.state.players.filter(player => player.id !== id);
   }
 
@@ -42,8 +44,15 @@ export class Game {
     this.state.currentBet = 0;
     this.state.minRaise = this.state.bigBlind;
     this.state.showdownResults = [];
+    this.state.logs = [];
     this.state.phase = "preview";
-    for (const player of this.state.players) resetForNewHand(player);
+    for (const player of this.state.players) {
+      resetForNewHand(player);
+      if (player.chips === 0) {
+        player.folded = true;
+        player.acted = true;
+      }
+    }
     for (let card = 0; card < 2; card++) {
       for (const player of this.state.players) player.hand.push(this.state.deck.draw());
     }
@@ -52,7 +61,10 @@ export class Game {
     // particular, the big blind must still get the option to check or raise.
     for (const player of this.state.players) player.acted = false;
     const bigBlindIndex = getBigBlindIndex(this.state.dealerIndex, this.state.players.length);
-    this.state.currentPlayerIndex = this.state.players.length === 2 ? this.state.dealerIndex : (bigBlindIndex + 1) % this.state.players.length;
+    const firstPlayerIndex = this.state.players.length === 2
+      ? this.state.dealerIndex
+      : bigBlindIndex;
+    this.state.currentPlayerIndex = getNextPlayerIndex(this.state.players, firstPlayerIndex) ?? firstPlayerIndex;
   }
 
   beginBetting(): void {
@@ -91,6 +103,7 @@ export class Game {
       smallBlind: this.state.smallBlind,
       bigBlind: this.state.bigBlind,
       showdownResults: [...this.state.showdownResults],
+      logs: [...this.state.logs],
       phase: this.state.phase,
       turnEndsAt: this.state.turnEndsAt,
     };
