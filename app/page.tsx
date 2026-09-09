@@ -108,6 +108,12 @@ export default function Home() {
   }, [rooms, setRooms]);
 
   function handleSubmit() {
+    
+    if(roomName.trim()=== "" && name.trim() === "") {
+      alert("Only characters and numbers are accepted!");
+      return;
+    }
+
     const data = {
       name: roomName,
       playerId: getPlayerId(),
@@ -120,19 +126,28 @@ export default function Home() {
     setRoomName("");
   }
 
-  function joinRoom(roomId: string) {
-    if (joiningRoomId !== roomId) {
-      setJoiningRoomId(roomId);
+  function joinRoom(room: Room) {
+    if (joiningRoomId !== room.id) {
+      setJoiningRoomId(room.id);
       setJoinName("");
       return;
     }
 
-    if (!joinName.trim()) {
+    if (joinName.trim() === "") {
+      alert("Only characters and numbers are accepted!");
+      return;
+    }
+    const playerName = joinName.trim().toLowerCase();
+    
+    const player = room.players.find(player => player.name.toLowerCase() === playerName);
+    if(player?.name) {
+      alert(`Enter unique name. Player of name ${player.name} already present!`);
+      setJoinName("");
       return;
     }
 
     socket.emit("join-room", {
-      roomId,
+      roomId: room.id,
       playerId: getPlayerId(),
       playerName: joinName.trim(),
     });
@@ -190,7 +205,7 @@ export default function Home() {
             />
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-2">
             {rooms.map((room, i) => {
               return (
                 <div
@@ -203,7 +218,7 @@ export default function Home() {
                       value={joinName}
                       placeholder="Enter your name"
                       onChange={(event) => setJoinName(event.target.value)}
-                      className="w-32 border-2 px-2"
+                      className="w-50 border-2 px-2"
                     />
                   ) : (
                     <div>
@@ -216,7 +231,7 @@ export default function Home() {
                   )}
                   <button
                     type="button"
-                    onClick={() => joinRoom(room.id)}
+                    onClick={() => joinRoom(room)}
                     disabled={room.status !== "lobby"}
                     className="w-20 h-6 bg-black text-white text-center hover:h-6.5 active:bg-purple-600"
                   >
