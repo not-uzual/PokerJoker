@@ -4,7 +4,8 @@ import type { PlayerAction } from "../game/types.js";
 import { CARD_PREVIEW_DURATION_MS, JOKER_DEAL_COUNTDOWN_MS, PLAYER_ACTION_DURATION_MS } from "../game/config.js";
 
 type RoomPlayer = { playerId: string; name: string; socketId: string | undefined };
-type Room = { id: string; name: string; host: string; players: RoomPlayer[]; maxPlayers: number; status: "lobby" | "starting" | "in-progress" | "finished" };
+type ChatMessage = { id: string; createdAt: number; playerId: string; playerName: string; message: string; kind?: "system" };
+type Room = { id: string; name: string; host: string; players: RoomPlayer[]; maxPlayers: number; status: "lobby" | "starting" | "in-progress" | "finished"; chatMessages: ChatMessage[] };
 type GameTimers = Map<string, ReturnType<typeof setTimeout>>;
 const ROOM_CLEANUP_INTERVAL_MS = 60_000;
 
@@ -18,7 +19,7 @@ export function registerSocketHandlers(io: Server): void {
   }, ROOM_CLEANUP_INTERVAL_MS);
 
   io.on("connection", socket => {
-    socket.emit("rooms-updated", [...rooms.values()]);
+    socket.emit("rooms-updated", publicRooms(rooms));
 
     socket.on("register-player", ({ playerId }: { playerId: string }) => {
       if (!playerId) return;
@@ -28,9 +29,10 @@ export function registerSocketHandlers(io: Server): void {
         if (!player) continue;
         player.socketId = socket.id;
         socket.join(room.id);
+        socket.emit("chat-messages", room.chatMessages);
         emitGameState(io, room.id, games, rooms);
       }
-      io.emit("rooms-updated", [...rooms.values()]);
+      io.emit("rooms-updated", publicRooms(rooms));
     });
 
     registerRoomEvents(io, socket, games, rooms, timers);
@@ -42,7 +44,7 @@ export function registerSocketHandlers(io: Server): void {
         const player = room.players.find(candidate => candidate.socketId === socket.id);
         if (player) player.socketId = undefined;
       }
-      io.emit("rooms-updated", [...rooms.values()]);
+      io.emit("rooms-updated", publicRooms(rooms));
     });
   });
 }
@@ -53,13 +55,14 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
     const displayName = playerName?.trim();
     if (!roomName || !displayName || !playerId) return socket.emit("room-error", { message: "Room name and player name are required" });
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const room: Room = { id: roomId, name: roomName, host: playerId, players: [{ playerId, name: displayName, socketId: socket.id }], maxPlayers: 9, status: "lobby" };
+    const room: Room = { id: roomId, name: roomName, host: playerId, players: [{ playerId, name: displayName, socketId: socket.id }], maxPlayers: 9, status: "lobby", chatMessages: [] };
     rooms.set(roomId, room);
     games.createGame(roomId).addPlayer(playerId, displayName, 10000);
     games.setPlayerSocket(playerId, socket.id);
     socket.join(roomId);
-    io.emit("rooms-updated", [...rooms.values()]);
+    io.emit("rooms-updated", publicRooms(rooms));
     socket.emit("room-joined", { room });
+    socket.emit("chat-messages", room.chatMessages);
     emitGameState(io, roomId, games, rooms);
   });
 
@@ -74,6 +77,7 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
       games.setPlayerSocket(playerId, socket.id);
       socket.join(roomId);
       socket.emit("room-joined", { room });
+      socket.emit("chat-messages", room.chatMessages);
       emitGameState(io, roomId, games, rooms);
       return;
     }
@@ -84,8 +88,9 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
       room.players.push({ playerId, name: displayName, socketId: socket.id });
       games.setPlayerSocket(playerId, socket.id);
       socket.join(roomId);
-      io.emit("rooms-updated", [...rooms.values()]);
+      io.emit("rooms-updated", publicRooms(rooms));
       socket.emit("room-joined", { room });
+      socket.emit("chat-messages", room.chatMessages);
       emitGameState(io, roomId, games, rooms);
     } catch (error) {
       socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to join room" });
@@ -118,9 +123,51 @@ function registerRoomEvents(io: Server, socket: Socket, games: GameManager, room
       } else {
         emitGameState(io, roomId, games, rooms);
       }
-      io.emit("rooms-updated", [...rooms.values()]);
+      io.emit("rooms-updated", publicRooms(rooms));
     } catch (error) {
       socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to leave room" });
+    }
+  });
+
+  socket.on("kick-player", ({ roomId, playerId, targetPlayerId }: { roomId: string; playerId: string; targetPlayerId: string }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.host !== playerId || games.getPlayerSocket(playerId) !== socket.id || !socket.rooms.has(roomId)) {
+      return socket.emit("room-error", { message: "Only the connected host can remove players" });
+    }
+    if (targetPlayerId === playerId) {
+      return socket.emit("room-error", { message: "The host cannot remove themselves" });
+    }
+
+    const target = room.players.find(player => player.playerId === targetPlayerId);
+    if (!target) return socket.emit("room-error", { message: "Player not found" });
+
+    try {
+      const admin = room.players.find(player => player.playerId === playerId);
+      const kickMessage: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        createdAt: Date.now(),
+        playerId,
+        playerName: "system",
+        message: `${target.name} was kicked by admin ${admin?.name ?? "the admin"}`,
+        kind: "system",
+      };
+      room.chatMessages = [...room.chatMessages, kickMessage].slice(-30);
+      io.to(roomId).emit("chat-message", kickMessage);
+
+      games.getGame(roomId).removePlayer(targetPlayerId);
+      room.players = room.players.filter(player => player.playerId !== targetPlayerId);
+      games.removePlayerSocket(targetPlayerId);
+      if (target.socketId) {
+        io.to(target.socketId).emit("player-kicked", {
+          message: `You were kicked from the room by ${admin?.name ?? "the admin"}.`,
+        });
+        io.to(target.socketId).emit("room-left", { roomId });
+        io.sockets.sockets.get(target.socketId)?.leave(roomId);
+      }
+      emitGameState(io, roomId, games, rooms);
+      io.emit("rooms-updated", publicRooms(rooms));
+    } catch (error) {
+      socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to remove player" });
     }
   });
 }
@@ -144,10 +191,27 @@ function cleanupEmptyRooms(
     removedRoom = true;
   }
 
-  if (removedRoom) io.emit("rooms-updated", [...rooms.values()]);
+  if (removedRoom) io.emit("rooms-updated", publicRooms(rooms));
 }
 
 function registerGameEvents(io: Server, socket: Socket, games: GameManager, rooms: Map<string, Room>, timers: GameTimers): void {
+  socket.on("send-chat-message", ({ roomId, playerId, message }: { roomId: string; playerId: string; message: string }) => {
+    const room = rooms.get(roomId);
+    const player = room?.players.find(candidate => candidate.playerId === playerId);
+    const trimmedMessage = message?.trim();
+    if (!room || !player || player.socketId !== socket.id || !socket.rooms.has(roomId) || !trimmedMessage) return;
+
+    const chatMessage: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      createdAt: Date.now(),
+      playerId,
+      playerName: player.name,
+      message: trimmedMessage.slice(0, 240),
+    };
+    room.chatMessages = [...room.chatMessages, chatMessage].slice(-30);
+    io.to(roomId).emit("chat-message", chatMessage);
+  });
+
   socket.on("start-game", ({ roomId, playerId }: { roomId: string; playerId: string }) => {
     const room = rooms.get(roomId);
     if (!room || room.host !== playerId || games.getPlayerSocket(playerId) !== socket.id || (room.status !== "lobby" && room.status !== "finished")) {
@@ -156,7 +220,7 @@ function registerGameEvents(io: Server, socket: Socket, games: GameManager, room
     try {
       games.startGame(roomId);
       room.status = "starting";
-      io.emit("rooms-updated", [...rooms.values()]);
+      io.emit("rooms-updated", publicRooms(rooms));
       startCountdown(io, roomId, games, rooms, timers);
       emitGameState(io, roomId, games, rooms);
     } catch (error) {
@@ -197,7 +261,7 @@ function startCountdown(io: Server, roomId: string, games: GameManager, rooms: M
       game.beginBetting();
       const room = rooms.get(roomId);
       if (room) room.status = "in-progress";
-      io.emit("rooms-updated", [...rooms.values()]);
+      io.emit("rooms-updated", publicRooms(rooms));
       scheduleTurn(io, roomId, games, rooms, timers);
       emitGameState(io, roomId, games, rooms);
     }, CARD_PREVIEW_DURATION_MS));
@@ -212,7 +276,7 @@ function scheduleTurn(io: Server, roomId: string, games: GameManager, rooms: Map
     if (state.phase === "finished") {
       const room = rooms.get(roomId);
       if (room) room.status = "finished";
-      io.emit("rooms-updated", [...rooms.values()]);
+      io.emit("rooms-updated", publicRooms(rooms));
     }
     return;
   }
@@ -239,4 +303,8 @@ function emitGameState(io: Server, roomId: string, games: GameManager, rooms: Ma
   for (const player of room.players) {
     if (player.socketId) io.to(player.socketId).emit("game-state", game.getPublicState(player.playerId));
   }
+}
+
+function publicRooms(rooms: Map<string, Room>): Array<Omit<Room, "chatMessages">> {
+  return [...rooms.values()].map(({ chatMessages: _chatMessages, ...room }) => room);
 }

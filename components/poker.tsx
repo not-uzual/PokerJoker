@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { socket } from "@/lib/socket";
 import { useGame } from "./contexts/gameContext";
-import LogMessage, { type GameLogEntry } from "./logMessage";
+import LogChat, { type ChatMessage, type GameLogEntry } from "./logChat";
 
 type Card = {
   suit: "H" | "D" | "C" | "S";
@@ -137,6 +137,8 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   const {isJoined, setIsJoined} = useGame();
   const [canOpen, setCanOpen] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [message, setMessage] = useState("");
   const [playerId] = useState(() =>
     typeof window === "undefined" ? "" : getPlayerId(),
   );
@@ -166,19 +168,33 @@ export default function PokerGame({ roomId }: PokerGameProps) {
     const handleGameState = (state: GameState) => setGameState(state);
     const handleGameError = ({ message }: { message: string }) =>
       console.error(message);
+    const handleChatMessages = (messages: ChatMessage[]) => setChatMessages(messages);
+    const handleChatMessage = (chatMessage: ChatMessage) =>
+      setChatMessages((current) => [...current, chatMessage].slice(-30));
+    const handlePlayerKicked = ({ message }: { message: string }) => {
+      handleRoomLeft();
+      window.alert(message);
+    };
     const handleRoomLeft = () => {
-      localStorage.removeItem("player-room-data");
-      router.push("/");
+      localStorage.clear()
+      setIsJoined(false)
+      router.replace("/")
     };
 
     socket.on("game-state", handleGameState);
     socket.on("game-error", handleGameError);
+    socket.on("chat-messages", handleChatMessages);
+    socket.on("chat-message", handleChatMessage);
+    socket.on("player-kicked", handlePlayerKicked);
     socket.on("room-left", handleRoomLeft);
     socket.emit("register-player", { playerId: currentPlayerId });
 
     return () => {
       socket.off("game-state", handleGameState);
       socket.off("game-error", handleGameError);
+      socket.off("chat-messages", handleChatMessages);
+      socket.off("chat-message", handleChatMessage);
+      socket.off("player-kicked", handlePlayerKicked);
       socket.off("room-left", handleRoomLeft);
     };
   }, [router]);
@@ -197,6 +213,29 @@ export default function PokerGame({ roomId }: PokerGameProps) {
 
   function startGame() {
     socket.emit("start-game", { roomId, playerId });
+  }
+
+  function sendChatMessage() {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) return;
+
+    const removeCommand = trimmedMessage.match(/^joker kick\s+(.+)$/i);
+    if (removeCommand) {
+      const targetName = removeCommand[1]?.trim();
+      const target = gameState?.players.find(
+        (player) => player.name.toLowerCase() === targetName?.toLowerCase(),
+      );
+      if (!target) {
+        console.error("Player not found");
+      } else {
+        socket.emit("kick-player", { roomId, playerId, targetPlayerId: target.id });
+      }
+      setMessage("");
+      return;
+    }
+
+    socket.emit("send-chat-message", { roomId, playerId, message: trimmedMessage });
+    setMessage("");
   }
 
   function leaveRoom() {
@@ -229,7 +268,6 @@ export default function PokerGame({ roomId }: PokerGameProps) {
           activePlayerId={activePlayerId}
         />
         {gameState && <GameStatus gameState={gameState} />}
-        {gameState && <LogMessage logs={gameState.logs} />}
         {canStartNextHand && roomData.hostId === playerId && (
           <button
             type="button"
@@ -260,6 +298,16 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       )}
       {!isMyTurn && me && gameState && (
         <PlayerStats me={me} gameState={gameState} />
+      )}
+
+      {gameState && (
+        <LogChat
+          logs={gameState.logs}
+          chatMessages={chatMessages}
+          message={message}
+          onMessageChange={setMessage}
+          onSendMessage={sendChatMessage}
+        />
       )}
 
       <button

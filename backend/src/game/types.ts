@@ -103,6 +103,7 @@ export type ShowdownResult = {
 };
 
 export type GameLogEntry = {
+  createdAt: number;
   playerId: string;
   playerName: string;
   action: "fold" | "check" | "call" | "bet" | "raise" | "all-in" | "win";

@@ -248,8 +248,8 @@ export class GameEngine {
     state.pot += putChips(player, amount);
   }
 
-  private addLog(state: GameState, entry: GameState["logs"][number]): void {
-    state.logs = [...state.logs, entry].slice(-3);
+  private addLog(state: GameState, entry: Omit<GameState["logs"][number], "createdAt">): void {
+	  state.logs = [...state.logs, { ...entry, createdAt: Date.now() }].slice(-30);
   }
 
   private getPlayer(players: PlayerState[], playerId: string): PlayerState {

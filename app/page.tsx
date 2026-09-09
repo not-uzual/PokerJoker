@@ -64,10 +64,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    console.log("updated join:", isJoined);
-  }, [isJoined]);
-
-  useEffect(() => {
     const playerRoomData = getPlayerRoomData();
 
     if (playerRoomData && isJoined) {

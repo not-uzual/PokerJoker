@@ -44,7 +44,6 @@ export class Game {
     this.state.currentBet = 0;
     this.state.minRaise = this.state.bigBlind;
     this.state.showdownResults = [];
-    this.state.logs = [];
     this.state.phase = "preview";
     for (const player of this.state.players) {
       resetForNewHand(player);
