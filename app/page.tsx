@@ -137,7 +137,14 @@ export default function Home() {
       alert("Only characters and numbers are accepted!");
       return;
     }
+    
     const playerName = joinName.trim().toLowerCase();
+    const isValid = /^[A-Za-z0-9]+$/.test(playerName);
+
+    if(!isValid) {
+      alert("Only characters and numbers are accepted!");
+      return;
+    }
     
     const player = room.players.find(player => player.name.toLowerCase() === playerName);
     if(player?.name) {
