@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { useEffect, useRef } from "react";
+import ReactionDropdown from "./reactionDropdown";
 
 type LogCard = {
   suit: "H" | "D" | "C" | "S";
@@ -27,6 +28,14 @@ export type ChatMessage = {
   kind?: "system";
 };
 
+export type ReactionMessage = {
+  id: string;
+  createdAt: number;
+  playerId: string;
+  playerName: string;
+  reactionIndex: number;
+};
+
 function actionText(entry: GameLogEntry): string {
   if (entry.action === "win") return `won $${entry.amount ?? 0} pot`;
   if (entry.action === "check" || entry.action === "fold") return entry.action;
@@ -34,23 +43,30 @@ function actionText(entry: GameLogEntry): string {
   return `${entry.action} $${entry.amount ?? 0}`;
 }
 
-export default function LogChat({
+export default function ChatBox({
   logs,
   chatMessages,
+  reactions,
   message,
   onMessageChange,
+  onReactionChange,
   onSendMessage,
+  onSendReaction
 }: {
   logs: GameLogEntry[];
   chatMessages: ChatMessage[];
+  reactions: string[]
   message: string;
   onMessageChange: (message: string) => void;
+  onReactionChange: (i: number) => void;
   onSendMessage: () => void;
+  onSendReaction: () => void;
 }) {
   const history = [
     ...logs.map((entry) => ({ type: "system" as const, entry })),
     ...chatMessages.map((entry) => ({
-      type: entry.kind === "system" ? ("system-chat" as const) : ("chat" as const),
+      type:
+        entry.kind === "system" ? ("system-chat" as const) : ("chat" as const),
       entry,
     })),
   ]
@@ -122,27 +138,27 @@ export default function LogChat({
           ),
         )}
       </div>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSendMessage();
-        }}
-        className="flex gap-1"
-      >
-        <input
-          value={message}
-          onChange={(event) => onMessageChange(event.target.value)}
-          maxLength={240}
-          placeholder="Message room"
-          className="min-w-0 flex-1 rounded-sm bg-black/75 px-2 py-1 text-sm text-white outline-none placeholder:text-zinc-400"
-        />
-        <button
-          type="submit"
-          className="rounded-sm bg-purple-700 px-3 py-1 text-sm font-bold text-white cursor-pointer"
+      <div className="flex-1 flex gap-1">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSendMessage();
+          }}
+          className="flex-1 flex"
         >
-          Send
-        </button>
-      </form>
+          <input
+            value={message}
+            onChange={(event) => onMessageChange(event.target.value)}
+            maxLength={240}
+            placeholder="Message room"
+            className="min-w-0 flex-1 rounded-sm bg-black/75 px-2 py-1 text-sm text-white outline-none placeholder:text-zinc-400 border-b-2 border-b-violet-500"
+          />
+        </form>
+        <ReactionDropdown 
+          reactions={reactions}
+          onChangeReaction={onReactionChange}
+          onSendReaction={onSendReaction}/>
+      </div>
     </aside>
   );
 }

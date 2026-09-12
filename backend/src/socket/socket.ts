@@ -1,11 +1,41 @@
 import type { Server, Socket } from "socket.io";
 import { GameManager } from "../game/gameManager.js";
 import type { PlayerAction } from "../game/types.js";
-import { CARD_PREVIEW_DURATION_MS, JOKER_DEAL_COUNTDOWN_MS, PLAYER_ACTION_DURATION_MS } from "../game/config.js";
+import {
+  CARD_PREVIEW_DURATION_MS,
+  JOKER_DEAL_COUNTDOWN_MS,
+  PLAYER_ACTION_DURATION_MS,
+} from "../game/config.js";
 
-type RoomPlayer = { playerId: string; name: string; socketId: string | undefined };
-type ChatMessage = { id: string; createdAt: number; playerId: string; playerName: string; message: string; kind?: "system" };
-type Room = { id: string; name: string; host: string; players: RoomPlayer[]; maxPlayers: number; status: "lobby" | "starting" | "in-progress" | "finished"; chatMessages: ChatMessage[] };
+type RoomPlayer = {
+  playerId: string;
+  name: string;
+  socketId: string | undefined;
+};
+type ChatMessage = {
+  id: string;
+  createdAt: number;
+  playerId: string;
+  playerName: string;
+  message: string;
+  kind?: "system";
+};
+type ReactionMessage = {
+  id: string;
+  createdAt: number;
+  playerId: string;
+  playerName: string;
+  reactionIndex: number;
+};
+type Room = {
+  id: string;
+  name: string;
+  host: string;
+  players: RoomPlayer[];
+  maxPlayers: number;
+  status: "lobby" | "starting" | "in-progress" | "finished";
+  chatMessages: ChatMessage[];
+};
 type GameTimers = Map<string, ReturnType<typeof setTimeout>>;
 const ROOM_CLEANUP_INTERVAL_MS = 60_000;
 
@@ -18,14 +48,16 @@ export function registerSocketHandlers(io: Server): void {
     cleanupEmptyRooms(io, games, rooms, timers);
   }, ROOM_CLEANUP_INTERVAL_MS);
 
-  io.on("connection", socket => {
+  io.on("connection", (socket) => {
     socket.emit("rooms-updated", publicRooms(rooms));
 
     socket.on("register-player", ({ playerId }: { playerId: string }) => {
       if (!playerId) return;
       games.setPlayerSocket(playerId, socket.id);
       for (const room of rooms.values()) {
-        const player = room.players.find(candidate => candidate.playerId === playerId);
+        const player = room.players.find(
+          (candidate) => candidate.playerId === playerId,
+        );
         if (!player) continue;
         player.socketId = socket.id;
         socket.join(room.id);
@@ -41,7 +73,9 @@ export function registerSocketHandlers(io: Server): void {
     socket.on("disconnect", () => {
       games.removeSocket(socket.id);
       for (const room of rooms.values()) {
-        const player = room.players.find(candidate => candidate.socketId === socket.id);
+        const player = room.players.find(
+          (candidate) => candidate.socketId === socket.id,
+        );
         if (player) player.socketId = undefined;
       }
       io.emit("rooms-updated", publicRooms(rooms));
@@ -49,127 +83,222 @@ export function registerSocketHandlers(io: Server): void {
   });
 }
 
-function registerRoomEvents(io: Server, socket: Socket, games: GameManager, rooms: Map<string, Room>, timers: GameTimers): void {
-  socket.on("create-room", ({ name, playerId, playerName }: { name: string; playerId: string; playerName: string }) => {
-    const roomName = name?.trim();
-    const displayName = playerName?.trim();
-    if (!roomName || !displayName || !playerId) return socket.emit("room-error", { message: "Room name and player name are required" });
-    const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const room: Room = { id: roomId, name: roomName, host: playerId, players: [{ playerId, name: displayName, socketId: socket.id }], maxPlayers: 9, status: "lobby", chatMessages: [] };
-    rooms.set(roomId, room);
-    games.createGame(roomId).addPlayer(playerId, displayName, 10000);
-    games.setPlayerSocket(playerId, socket.id);
-    socket.join(roomId);
-    io.emit("rooms-updated", publicRooms(rooms));
-    socket.emit("room-joined", { room });
-    socket.emit("chat-messages", room.chatMessages);
-    emitGameState(io, roomId, games, rooms);
-  });
-
-  socket.on("join-room", ({ roomId, playerId, playerName }: { roomId: string; playerId: string; playerName: string }) => {
-    const room = rooms.get(roomId);
-    const displayName = playerName?.trim();
-    if (!room) return socket.emit("room-error", { message: "Room not found" });
-    if (room.status !== "lobby") return socket.emit("room-error", { message: "This hand has already started. Join a new lobby for the next game." });
-    const existingPlayer = room.players.find(player => player.playerId === playerId);
-    if (existingPlayer) {
-      existingPlayer.socketId = socket.id;
-      games.setPlayerSocket(playerId, socket.id);
-      socket.join(roomId);
-      socket.emit("room-joined", { room });
-      socket.emit("chat-messages", room.chatMessages);
-      emitGameState(io, roomId, games, rooms);
-      return;
-    }
-    if (!displayName || !playerId) return socket.emit("room-error", { message: "Player name is required" });
-    if (room.players.length >= room.maxPlayers) return socket.emit("room-error", { message: "Room is full" });
-    try {
-      games.getGame(roomId).addPlayer(playerId, displayName, 10000);
-      room.players.push({ playerId, name: displayName, socketId: socket.id });
-      games.setPlayerSocket(playerId, socket.id);
-      socket.join(roomId);
-      io.emit("rooms-updated", publicRooms(rooms));
-      socket.emit("room-joined", { room });
-      socket.emit("chat-messages", room.chatMessages);
-      emitGameState(io, roomId, games, rooms);
-    } catch (error) {
-      socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to join room" });
-    }
-  });
-
-  socket.on("leave-room", ({ roomId, playerId }: { roomId: string; playerId: string }) => {
-    const room = rooms.get(roomId);
-    const roomPlayer = room?.players.find(player => player.playerId === playerId);
-    if (!room || !roomPlayer || roomPlayer.socketId !== socket.id) {
-      return socket.emit("room-error", { message: "You are not connected to this room" });
-    }
-
-    try {
-      games.getGame(roomId).removePlayer(playerId);
-      room.players = room.players.filter(player => player.playerId !== playerId);
-
-      if (room.host === playerId) {
-        room.host = room.players[0]?.playerId ?? "";
-      }
-
-      socket.leave(roomId);
-      games.removePlayerSocket(playerId);
-      socket.emit("room-left", { roomId });
-
-      if (room.players.length === 0) {
-        clearGameTimer(roomId, timers);
-        games.removeGame(roomId);
-        rooms.delete(roomId);
-      } else {
-        emitGameState(io, roomId, games, rooms);
-      }
-      io.emit("rooms-updated", publicRooms(rooms));
-    } catch (error) {
-      socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to leave room" });
-    }
-  });
-
-  socket.on("kick-player", ({ roomId, playerId, targetPlayerId }: { roomId: string; playerId: string; targetPlayerId: string }) => {
-    const room = rooms.get(roomId);
-    if (!room || room.host !== playerId || games.getPlayerSocket(playerId) !== socket.id || !socket.rooms.has(roomId)) {
-      return socket.emit("room-error", { message: "Only the connected host can remove players" });
-    }
-    if (targetPlayerId === playerId) {
-      return socket.emit("room-error", { message: "The host cannot remove themselves" });
-    }
-
-    const target = room.players.find(player => player.playerId === targetPlayerId);
-    if (!target) return socket.emit("room-error", { message: "Player not found" });
-
-    try {
-      const admin = room.players.find(player => player.playerId === playerId);
-      const kickMessage: ChatMessage = {
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-        createdAt: Date.now(),
-        playerId,
-        playerName: "system",
-        message: `${target.name} was kicked by admin ${admin?.name ?? "the admin"}`,
-        kind: "system",
-      };
-      room.chatMessages = [...room.chatMessages, kickMessage].slice(-30);
-      io.to(roomId).emit("chat-message", kickMessage);
-
-      games.getGame(roomId).removePlayer(targetPlayerId);
-      room.players = room.players.filter(player => player.playerId !== targetPlayerId);
-      games.removePlayerSocket(targetPlayerId);
-      if (target.socketId) {
-        io.to(target.socketId).emit("player-kicked", {
-          message: `You were kicked from the room by ${admin?.name ?? "the admin"}.`,
+function registerRoomEvents(
+  io: Server,
+  socket: Socket,
+  games: GameManager,
+  rooms: Map<string, Room>,
+  timers: GameTimers,
+): void {
+  socket.on(
+    "create-room",
+    ({
+      name,
+      playerId,
+      playerName,
+    }: {
+      name: string;
+      playerId: string;
+      playerName: string;
+    }) => {
+      const roomName = name?.trim();
+      const displayName = playerName?.trim();
+      if (!roomName || !displayName || !playerId)
+        return socket.emit("room-error", {
+          message: "Room name and player name are required",
         });
-        io.to(target.socketId).emit("room-left", { roomId });
-        io.sockets.sockets.get(target.socketId)?.leave(roomId);
-      }
-      emitGameState(io, roomId, games, rooms);
+      const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const room: Room = {
+        id: roomId,
+        name: roomName,
+        host: playerId,
+        players: [{ playerId, name: displayName, socketId: socket.id }],
+        maxPlayers: 9,
+        status: "lobby",
+        chatMessages: [],
+      };
+      rooms.set(roomId, room);
+      games.createGame(roomId).addPlayer(playerId, displayName, 10000);
+      games.setPlayerSocket(playerId, socket.id);
+      socket.join(roomId);
       io.emit("rooms-updated", publicRooms(rooms));
-    } catch (error) {
-      socket.emit("room-error", { message: error instanceof Error ? error.message : "Unable to remove player" });
-    }
-  });
+      socket.emit("room-joined", { room });
+      socket.emit("chat-messages", room.chatMessages);
+      emitGameState(io, roomId, games, rooms);
+    },
+  );
+
+  socket.on(
+    "join-room",
+    ({
+      roomId,
+      playerId,
+      playerName,
+    }: {
+      roomId: string;
+      playerId: string;
+      playerName: string;
+    }) => {
+      const room = rooms.get(roomId);
+      const displayName = playerName?.trim();
+      if (!room)
+        return socket.emit("room-error", { message: "Room not found" });
+      if (room.status !== "lobby")
+        return socket.emit("room-error", {
+          message:
+            "This hand has already started. Join a new lobby for the next game.",
+        });
+      const existingPlayer = room.players.find(
+        (player) => player.playerId === playerId,
+      );
+      if (existingPlayer) {
+        existingPlayer.socketId = socket.id;
+        games.setPlayerSocket(playerId, socket.id);
+        socket.join(roomId);
+        socket.emit("room-joined", { room });
+        socket.emit("chat-messages", room.chatMessages);
+        emitGameState(io, roomId, games, rooms);
+        return;
+      }
+      if (!displayName || !playerId)
+        return socket.emit("room-error", {
+          message: "Player name is required",
+        });
+      if (room.players.length >= room.maxPlayers)
+        return socket.emit("room-error", { message: "Room is full" });
+      try {
+        games.getGame(roomId).addPlayer(playerId, displayName, 10000);
+        room.players.push({ playerId, name: displayName, socketId: socket.id });
+        games.setPlayerSocket(playerId, socket.id);
+        socket.join(roomId);
+        io.emit("rooms-updated", publicRooms(rooms));
+        socket.emit("room-joined", { room });
+        socket.emit("chat-messages", room.chatMessages);
+        emitGameState(io, roomId, games, rooms);
+      } catch (error) {
+        socket.emit("room-error", {
+          message:
+            error instanceof Error ? error.message : "Unable to join room",
+        });
+      }
+    },
+  );
+
+  socket.on(
+    "leave-room",
+    ({ roomId, playerId }: { roomId: string; playerId: string }) => {
+      const room = rooms.get(roomId);
+      const roomPlayer = room?.players.find(
+        (player) => player.playerId === playerId,
+      );
+      if (!room || !roomPlayer || roomPlayer.socketId !== socket.id) {
+        return socket.emit("room-error", {
+          message: "You are not connected to this room",
+        });
+      }
+
+      try {
+        games.getGame(roomId).removePlayer(playerId);
+        room.players = room.players.filter(
+          (player) => player.playerId !== playerId,
+        );
+
+        if (room.host === playerId) {
+          room.host = room.players[0]?.playerId ?? "";
+        }
+
+        socket.leave(roomId);
+        games.removePlayerSocket(playerId);
+        socket.emit("room-left", { roomId });
+
+        if (room.players.length === 0) {
+          clearGameTimer(roomId, timers);
+          games.removeGame(roomId);
+          rooms.delete(roomId);
+        } else {
+          emitGameState(io, roomId, games, rooms);
+        }
+        io.emit("rooms-updated", publicRooms(rooms));
+      } catch (error) {
+        socket.emit("room-error", {
+          message:
+            error instanceof Error ? error.message : "Unable to leave room",
+        });
+      }
+    },
+  );
+
+  socket.on(
+    "kick-player",
+    ({
+      roomId,
+      playerId,
+      targetPlayerId,
+    }: {
+      roomId: string;
+      playerId: string;
+      targetPlayerId: string;
+    }) => {
+      const room = rooms.get(roomId);
+      if (
+        !room ||
+        room.host !== playerId ||
+        games.getPlayerSocket(playerId) !== socket.id ||
+        !socket.rooms.has(roomId)
+      ) {
+        return socket.emit("room-error", {
+          message: "Only the connected host can remove players",
+        });
+      }
+      if (targetPlayerId === playerId) {
+        return socket.emit("room-error", {
+          message: "The host cannot remove themselves",
+        });
+      }
+
+      const target = room.players.find(
+        (player) => player.playerId === targetPlayerId,
+      );
+      if (!target)
+        return socket.emit("room-error", { message: "Player not found" });
+
+      try {
+        const admin = room.players.find(
+          (player) => player.playerId === playerId,
+        );
+        const kickMessage: ChatMessage = {
+          id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+          createdAt: Date.now(),
+          playerId,
+          playerName: "system",
+          message: `${target.name} was kicked by admin ${admin?.name ?? "the admin"}`,
+          kind: "system",
+        };
+        room.chatMessages = [...room.chatMessages, kickMessage].slice(-30);
+        io.to(roomId).emit("chat-message", kickMessage);
+
+        games.getGame(roomId).removePlayer(targetPlayerId);
+        room.players = room.players.filter(
+          (player) => player.playerId !== targetPlayerId,
+        );
+        games.removePlayerSocket(targetPlayerId);
+        if (target.socketId) {
+          io.to(target.socketId).emit("player-kicked", {
+            message: `You were kicked from the room by ${admin?.name ?? "the admin"}.`,
+          });
+          io.to(target.socketId).emit("room-left", { roomId });
+          io.sockets.sockets.get(target.socketId)?.leave(roomId);
+        }
+        emitGameState(io, roomId, games, rooms);
+        io.emit("rooms-updated", publicRooms(rooms));
+      } catch (error) {
+        socket.emit("room-error", {
+          message:
+            error instanceof Error ? error.message : "Unable to remove player",
+        });
+      }
+    },
+  );
 }
 
 function cleanupEmptyRooms(
@@ -181,11 +310,14 @@ function cleanupEmptyRooms(
   let removedRoom = false;
 
   for (const [roomId, room] of rooms) {
-    const hasConnectedPlayer = room.players.some(player => player.socketId !== undefined);
+    const hasConnectedPlayer = room.players.some(
+      (player) => player.socketId !== undefined,
+    );
     if (hasConnectedPlayer) continue;
 
     clearGameTimer(roomId, timers);
-    for (const player of room.players) games.removePlayerSocket(player.playerId);
+    for (const player of room.players)
+      games.removePlayerSocket(player.playerId);
     games.removeGame(roomId);
     rooms.delete(roomId);
     removedRoom = true;
@@ -194,53 +326,146 @@ function cleanupEmptyRooms(
   if (removedRoom) io.emit("rooms-updated", publicRooms(rooms));
 }
 
-function registerGameEvents(io: Server, socket: Socket, games: GameManager, rooms: Map<string, Room>, timers: GameTimers): void {
-  socket.on("send-chat-message", ({ roomId, playerId, message }: { roomId: string; playerId: string; message: string }) => {
-    const room = rooms.get(roomId);
-    const player = room?.players.find(candidate => candidate.playerId === playerId);
-    const trimmedMessage = message?.trim();
-    if (!room || !player || player.socketId !== socket.id || !socket.rooms.has(roomId) || !trimmedMessage) return;
-
-    const chatMessage: ChatMessage = {
-      id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-      createdAt: Date.now(),
+function registerGameEvents(
+  io: Server,
+  socket: Socket,
+  games: GameManager,
+  rooms: Map<string, Room>,
+  timers: GameTimers,
+): void {
+  socket.on(
+    "send-chat-message",
+    ({
+      roomId,
       playerId,
-      playerName: player.name,
-      message: trimmedMessage.slice(0, 240),
-    };
-    room.chatMessages = [...room.chatMessages, chatMessage].slice(-30);
-    io.to(roomId).emit("chat-message", chatMessage);
-  });
+      message,
+    }: {
+      roomId: string;
+      playerId: string;
+      message: string;
+    }) => {
+      const room = rooms.get(roomId);
+      const player = room?.players.find(
+        (candidate) => candidate.playerId === playerId,
+      );
+      const trimmedMessage = message?.trim();
+      if (
+        !room ||
+        !player ||
+        player.socketId !== socket.id ||
+        !socket.rooms.has(roomId) ||
+        !trimmedMessage
+      )
+        return;
 
-  socket.on("start-game", ({ roomId, playerId }: { roomId: string; playerId: string }) => {
-    const room = rooms.get(roomId);
-    if (!room || room.host !== playerId || games.getPlayerSocket(playerId) !== socket.id || (room.status !== "lobby" && room.status !== "finished")) {
-      return socket.emit("game-error", { message: "Only the connected host can start the game" });
-    }
-    try {
-      games.startGame(roomId);
-      room.status = "starting";
-      io.emit("rooms-updated", publicRooms(rooms));
-      startCountdown(io, roomId, games, rooms, timers);
-      emitGameState(io, roomId, games, rooms);
-    } catch (error) {
-      socket.emit("game-error", { message: error instanceof Error ? error.message : "Unable to start game" });
-    }
-  });
+      const chatMessage: ChatMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        createdAt: Date.now(),
+        playerId,
+        playerName: player.name,
+        message: trimmedMessage.slice(0, 240),
+      };
+      room.chatMessages = [...room.chatMessages, chatMessage].slice(-30);
+      io.to(roomId).emit("chat-message", chatMessage);
+    },
+  );
 
-  socket.on("game-action", ({ roomId, playerId, action }: { roomId: string; playerId: string; action: PlayerAction }) => {
-    const room = rooms.get(roomId);
-    if (!room || games.getPlayerSocket(playerId) !== socket.id || !socket.rooms.has(roomId)) {
-      return socket.emit("game-error", { message: "You are not connected to this game" });
-    }
-    try {
-      games.getGame(roomId).handleAction(playerId, action);
-      scheduleTurn(io, roomId, games, rooms, timers);
-      emitGameState(io, roomId, games, rooms);
-    } catch (error) {
-      socket.emit("game-error", { message: error instanceof Error ? error.message : "Unable to perform action" });
-    }
-  });
+  socket.on(
+    "start-game",
+    ({ roomId, playerId }: { roomId: string; playerId: string }) => {
+      const room = rooms.get(roomId);
+      if (
+        !room ||
+        room.host !== playerId ||
+        games.getPlayerSocket(playerId) !== socket.id ||
+        (room.status !== "lobby" && room.status !== "finished")
+      ) {
+        return socket.emit("game-error", {
+          message: "Only the connected host can start the game",
+        });
+      }
+      try {
+        games.startGame(roomId);
+        room.status = "starting";
+        io.emit("rooms-updated", publicRooms(rooms));
+        startCountdown(io, roomId, games, rooms, timers);
+        emitGameState(io, roomId, games, rooms);
+      } catch (error) {
+        socket.emit("game-error", {
+          message:
+            error instanceof Error ? error.message : "Unable to start game",
+        });
+      }
+    },
+  );
+
+  socket.on(
+    "game-action",
+    ({
+      roomId,
+      playerId,
+      action,
+    }: {
+      roomId: string;
+      playerId: string;
+      action: PlayerAction;
+    }) => {
+      const room = rooms.get(roomId);
+      if (
+        !room ||
+        games.getPlayerSocket(playerId) !== socket.id ||
+        !socket.rooms.has(roomId)
+      ) {
+        return socket.emit("game-error", {
+          message: "You are not connected to this game",
+        });
+      }
+      try {
+        games.getGame(roomId).handleAction(playerId, action);
+        scheduleTurn(io, roomId, games, rooms, timers);
+        emitGameState(io, roomId, games, rooms);
+      } catch (error) {
+        socket.emit("game-error", {
+          message:
+            error instanceof Error ? error.message : "Unable to perform action",
+        });
+      }
+    },
+  );
+
+  socket.on(
+    "send-reaction",
+    ({
+      roomId,
+      playerId,
+      reactionIndex,
+    }: {
+      roomId: string;
+      playerId: string;
+      reactionIndex: number;
+    }) => {
+      const room = rooms.get(roomId);
+      const player = room?.players.find(
+        (candidate) => candidate.playerId === playerId,
+      );
+
+      if (
+        !room ||
+        !player ||
+        player.socketId !== socket.id ||
+        !socket.rooms.has(roomId)
+      ) return;
+      
+      const reactionMessage: ReactionMessage = {
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+        createdAt: Date.now(),
+        playerId,
+        playerName: player.name,
+        reactionIndex: reactionIndex
+      };
+      io.to(roomId).emit("chat-reaction", reactionMessage);
+    },
+  );
 }
 
 function clearGameTimer(roomId: string, timers: GameTimers): void {
@@ -249,26 +474,44 @@ function clearGameTimer(roomId: string, timers: GameTimers): void {
   timers.delete(roomId);
 }
 
-function startCountdown(io: Server, roomId: string, games: GameManager, rooms: Map<string, Room>, timers: GameTimers): void {
+function startCountdown(
+  io: Server,
+  roomId: string,
+  games: GameManager,
+  rooms: Map<string, Room>,
+  timers: GameTimers,
+): void {
   const game = games.getGame(roomId);
   game.setTurnEndsAt(Date.now() + JOKER_DEAL_COUNTDOWN_MS);
   clearGameTimer(roomId, timers);
-  timers.set(roomId, setTimeout(() => {
-    game.dealForPreview();
-    game.setTurnEndsAt(Date.now() + CARD_PREVIEW_DURATION_MS);
-    emitGameState(io, roomId, games, rooms);
-    timers.set(roomId, setTimeout(() => {
-      game.beginBetting();
-      const room = rooms.get(roomId);
-      if (room) room.status = "in-progress";
-      io.emit("rooms-updated", publicRooms(rooms));
-      scheduleTurn(io, roomId, games, rooms, timers);
+  timers.set(
+    roomId,
+    setTimeout(() => {
+      game.dealForPreview();
+      game.setTurnEndsAt(Date.now() + CARD_PREVIEW_DURATION_MS);
       emitGameState(io, roomId, games, rooms);
-    }, CARD_PREVIEW_DURATION_MS));
-  }, JOKER_DEAL_COUNTDOWN_MS));
+      timers.set(
+        roomId,
+        setTimeout(() => {
+          game.beginBetting();
+          const room = rooms.get(roomId);
+          if (room) room.status = "in-progress";
+          io.emit("rooms-updated", publicRooms(rooms));
+          scheduleTurn(io, roomId, games, rooms, timers);
+          emitGameState(io, roomId, games, rooms);
+        }, CARD_PREVIEW_DURATION_MS),
+      );
+    }, JOKER_DEAL_COUNTDOWN_MS),
+  );
 }
 
-function scheduleTurn(io: Server, roomId: string, games: GameManager, rooms: Map<string, Room>, timers: GameTimers): void {
+function scheduleTurn(
+  io: Server,
+  roomId: string,
+  games: GameManager,
+  rooms: Map<string, Room>,
+  timers: GameTimers,
+): void {
   const game = games.getGame(roomId);
   const state = game.getState();
   if (!["preflop", "flop", "turn", "river"].includes(state.phase)) {
@@ -284,27 +527,52 @@ function scheduleTurn(io: Server, roomId: string, games: GameManager, rooms: Map
   if (!player) return;
   game.setTurnEndsAt(Date.now() + PLAYER_ACTION_DURATION_MS);
   clearGameTimer(roomId, timers);
-  timers.set(roomId, setTimeout(() => {
-    const latest = game.getState();
-    const current = latest.players[latest.currentPlayerIndex];
-    if (!current || !["preflop", "flop", "turn", "river"].includes(latest.phase)) return;
-    // Timeout defaults to check when free, otherwise fold; it never spends a
-    // player's chips without their explicit decision.
-    game.handleAction(current.id, current.currentBet === latest.currentBet ? { type: "check" } : { type: "fold" });
-    scheduleTurn(io, roomId, games, rooms, timers);
-    emitGameState(io, roomId, games, rooms);
-  }, PLAYER_ACTION_DURATION_MS));
+  timers.set(
+    roomId,
+    setTimeout(() => {
+      const latest = game.getState();
+      const current = latest.players[latest.currentPlayerIndex];
+      if (
+        !current ||
+        !["preflop", "flop", "turn", "river"].includes(latest.phase)
+      )
+        return;
+      // Timeout defaults to check when free, otherwise fold; it never spends a
+      // player's chips without their explicit decision.
+      game.handleAction(
+        current.id,
+        current.currentBet === latest.currentBet
+          ? { type: "check" }
+          : { type: "fold" },
+      );
+      scheduleTurn(io, roomId, games, rooms, timers);
+      emitGameState(io, roomId, games, rooms);
+    }, PLAYER_ACTION_DURATION_MS),
+  );
 }
 
-function emitGameState(io: Server, roomId: string, games: GameManager, rooms: Map<string, Room>): void {
+function emitGameState(
+  io: Server,
+  roomId: string,
+  games: GameManager,
+  rooms: Map<string, Room>,
+): void {
   const room = rooms.get(roomId);
   if (!room) return;
   const game = games.getGame(roomId);
   for (const player of room.players) {
-    if (player.socketId) io.to(player.socketId).emit("game-state", game.getPublicState(player.playerId));
+    if (player.socketId)
+      io.to(player.socketId).emit(
+        "game-state",
+        game.getPublicState(player.playerId),
+      );
   }
 }
 
-function publicRooms(rooms: Map<string, Room>): Array<Omit<Room, "chatMessages">> {
-  return [...rooms.values()].map(({ chatMessages: _chatMessages, ...room }) => room);
+function publicRooms(
+  rooms: Map<string, Room>,
+): Array<Omit<Room, "chatMessages">> {
+  return [...rooms.values()].map(
+    ({ chatMessages: _chatMessages, ...room }) => room,
+  );
 }
