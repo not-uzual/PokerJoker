@@ -8,7 +8,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { socket } from "@/lib/socket";
 import { useGame } from "./contexts/gameContext";
-import LogChat, { type ChatMessage, type GameLogEntry } from "./logChat";
+import ChatBox, { type ChatMessage, type GameLogEntry, type ReactionMessage} from "./chatBox";
+import reactionSounds from "@/constents/reactions";
+
+const reactions = ["Are you crazy...", "Achha ji aisa hai kya...", "Baby laughing", "Cat laughing", "Chalooo", "Gunshot", "Eiiyaaaanhhhhh...", "Jo gareeb hove hai...", "Angen ghatram...", "Rez laugh"];
+
 
 type Card = {
   suit: "H" | "D" | "C" | "S";
@@ -139,6 +143,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
+  const [reactionIndex, setReactionIndex] = useState<number>(-1);
   const [playerId] = useState(() =>
     typeof window === "undefined" ? "" : getPlayerId(),
   );
@@ -171,6 +176,9 @@ export default function PokerGame({ roomId }: PokerGameProps) {
     const handleChatMessages = (messages: ChatMessage[]) => setChatMessages(messages);
     const handleChatMessage = (chatMessage: ChatMessage) =>
       setChatMessages((current) => [...current, chatMessage].slice(-30));
+    const handleChatReaction = (reaction: ReactionMessage) => {
+      playSound(reactionSounds[reaction.reactionIndex])
+    }
     const handlePlayerKicked = ({ message }: { message: string }) => {
       handleRoomLeft();
       window.alert(message);
@@ -185,6 +193,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
     socket.on("game-error", handleGameError);
     socket.on("chat-messages", handleChatMessages);
     socket.on("chat-message", handleChatMessage);
+    socket.on("chat-reaction", handleChatReaction);
     socket.on("player-kicked", handlePlayerKicked);
     socket.on("room-left", handleRoomLeft);
     socket.emit("register-player", { playerId: currentPlayerId });
@@ -194,6 +203,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       socket.off("game-error", handleGameError);
       socket.off("chat-messages", handleChatMessages);
       socket.off("chat-message", handleChatMessage);
+      socket.off("chat-reaction", handleChatReaction)
       socket.off("player-kicked", handlePlayerKicked);
       socket.off("room-left", handleRoomLeft);
     };
@@ -236,6 +246,15 @@ export default function PokerGame({ roomId }: PokerGameProps) {
 
     socket.emit("send-chat-message", { roomId, playerId, message: trimmedMessage });
     setMessage("");
+  }
+
+  function sendReaction() {
+    if(reactionIndex == -1) return;
+    console.log(reactionIndex);
+    socket.emit("send-reaction", {roomId, playerId, reactionIndex})
+    const message = `reacted ${reactions[reactionIndex]}`
+    socket.emit("send-chat-message", { roomId, playerId, message })
+    setReactionIndex(-1);
   }
 
   function leaveRoom() {
@@ -301,12 +320,15 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       )}
 
       {gameState && (
-        <LogChat
+        <ChatBox
           logs={gameState.logs}
           chatMessages={chatMessages}
           message={message}
           onMessageChange={setMessage}
+          onReactionChange={setReactionIndex}
           onSendMessage={sendChatMessage}
+          onSendReaction={sendReaction}
+          reactions={reactions}
         />
       )}
 
