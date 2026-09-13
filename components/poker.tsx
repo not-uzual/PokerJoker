@@ -26,6 +26,11 @@ const reactions = [
   "Jo gareeb hove hai...",
   "Angen ghatram...",
   "Rez laugh",
+  "Imposter",
+  "Doraemon",
+  "Happy Happy Happy",
+  "Light Yagami Laught",
+  "OOOOHHHHHHHHHHH"
 ];
 
 type Card = {
