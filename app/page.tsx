@@ -178,7 +178,7 @@ export default function Home() {
   return (
     <>
       <div className="flex-1 flex justify-center text-black">
-        <div className="h-150 w-200 flex flex-col items-center bg-white gap-2.5 py-2">
+        <div className="h-150 w-200 flex flex-col items-center bg-white gap-2.5 py-2 rounded-lg">
           <div className="w-60 border-2 flex flex-col justify-center items-center gap-2.5 py-2">
             <h2>Create Room</h2>
             <input
