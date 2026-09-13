@@ -8,11 +8,25 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { socket } from "@/lib/socket";
 import { useGame } from "./contexts/gameContext";
-import ChatBox, { type ChatMessage, type GameLogEntry, type ReactionMessage} from "./chatBox";
+import ChatBox, {
+  type ChatMessage,
+  type GameLogEntry,
+  type ReactionMessage,
+} from "./chatBox";
 import reactionSounds from "@/constents/reactions";
 
-const reactions = ["Are you crazy...", "Achha ji aisa hai kya...", "Baby laughing", "Cat laughing", "Chalooo", "Gunshot", "Eiiyaaaanhhhhh...", "Jo gareeb hove hai...", "Angen ghatram...", "Rez laugh"];
-
+const reactions = [
+  "Are you crazy...",
+  "Achha ji aisa hai kya...",
+  "Baby laughing",
+  "Cat laughing",
+  "Chalooo",
+  "Gunshot",
+  "Eiiyaaaanhhhhh...",
+  "Jo gareeb hove hai...",
+  "Angen ghatram...",
+  "Rez laugh",
+];
 
 type Card = {
   suit: "H" | "D" | "C" | "S";
@@ -47,15 +61,15 @@ type GameState = {
 };
 
 type Player = {
-    id: string;
-    name: string;
-    chips: number;
-    currentBet: number;
-    totalBet: number;
-    hand: Card[];
-    folded: boolean;
-    allIn: boolean;
-  }
+  id: string;
+  name: string;
+  chips: number;
+  currentBet: number;
+  totalBet: number;
+  hand: Card[];
+  folded: boolean;
+  allIn: boolean;
+};
 
 function GameStatus({ gameState }: { gameState: GameState }) {
   const [now, setNow] = useState(0);
@@ -138,7 +152,7 @@ function PlayerStats({
 
 export default function PokerGame({ roomId }: PokerGameProps) {
   const router = useRouter();
-  const {isJoined, setIsJoined} = useGame();
+  const { isJoined, setIsJoined } = useGame();
   const [canOpen, setCanOpen] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -151,42 +165,49 @@ export default function PokerGame({ roomId }: PokerGameProps) {
     () => (typeof window === "undefined" ? {} : getPlayerRoomData()),
   );
 
+  const [normalView, setNormalView] = useState(true);
+  const screenMinH = normalView ? 600 : 800;
+  const screenMinW = normalView ? 800 : 1000;
+
   useEffect(() => {
-    if(gameState?.phase === "starting") {
+    if (gameState?.phase === "starting") {
       playSound("/startGame.mp3");
     }
   }, [gameState]);
 
   useEffect(() => {
     const checkSize = () => {
-      setCanOpen(window.innerWidth > 1000 && window.innerHeight > 800);
+      setCanOpen(
+        window.innerWidth > screenMinW && window.innerHeight > screenMinH,
+      );
     };
 
     checkSize();
     window.addEventListener("resize", checkSize);
 
     return () => window.removeEventListener("resize", checkSize);
-  }, []);
+  }, [screenMinH, screenMinW]);
 
   useEffect(() => {
     const currentPlayerId = getPlayerId();
     const handleGameState = (state: GameState) => setGameState(state);
     const handleGameError = ({ message }: { message: string }) =>
       console.error(message);
-    const handleChatMessages = (messages: ChatMessage[]) => setChatMessages(messages);
+    const handleChatMessages = (messages: ChatMessage[]) =>
+      setChatMessages(messages);
     const handleChatMessage = (chatMessage: ChatMessage) =>
       setChatMessages((current) => [...current, chatMessage].slice(-30));
     const handleChatReaction = (reaction: ReactionMessage) => {
-      playSound(reactionSounds[reaction.reactionIndex])
-    }
+      playSound(reactionSounds[reaction.reactionIndex]);
+    };
     const handlePlayerKicked = ({ message }: { message: string }) => {
       handleRoomLeft();
       window.alert(message);
     };
     const handleRoomLeft = () => {
-      localStorage.clear()
-      setIsJoined(false)
-      router.replace("/")
+      localStorage.clear();
+      setIsJoined(false);
+      router.replace("/");
     };
 
     socket.on("game-state", handleGameState);
@@ -203,7 +224,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       socket.off("game-error", handleGameError);
       socket.off("chat-messages", handleChatMessages);
       socket.off("chat-message", handleChatMessage);
-      socket.off("chat-reaction", handleChatReaction)
+      socket.off("chat-reaction", handleChatReaction);
       socket.off("player-kicked", handlePlayerKicked);
       socket.off("room-left", handleRoomLeft);
     };
@@ -238,36 +259,61 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       if (!target) {
         console.error("Player not found");
       } else {
-        socket.emit("kick-player", { roomId, playerId, targetPlayerId: target.id });
+        socket.emit("kick-player", {
+          roomId,
+          playerId,
+          targetPlayerId: target.id,
+        });
       }
       setMessage("");
       return;
     }
 
-    socket.emit("send-chat-message", { roomId, playerId, message: trimmedMessage });
+    socket.emit("send-chat-message", {
+      roomId,
+      playerId,
+      message: trimmedMessage,
+    });
     setMessage("");
   }
 
   function sendReaction() {
-    if(reactionIndex == -1) return;
+    if (reactionIndex == -1) return;
     console.log(reactionIndex);
-    socket.emit("send-reaction", {roomId, playerId, reactionIndex})
-    const message = `reacted ${reactions[reactionIndex]}`
-    socket.emit("send-chat-message", { roomId, playerId, message })
+    socket.emit("send-reaction", { roomId, playerId, reactionIndex });
+    const message = `reacted ${reactions[reactionIndex]}`;
+    socket.emit("send-chat-message", { roomId, playerId, message });
     setReactionIndex(-1);
   }
 
   function leaveRoom() {
-    setIsJoined(false)
-    localStorage.clear()
-    router.push('/')
+    setIsJoined(false);
+    localStorage.clear();
+    router.push("/");
     socket.emit("leave-room", { roomId, playerId });
   }
 
   if (!canOpen) {
-    return <div className="text-white">Screen is too small</div>;
+    return (
+      <>
+        <div className="text-white">Screen is too small...</div>
+        <button
+          onClick={() => {
+            setNormalView((current) => !current);
+          }}
+          className={`absolute top-15 right-40 w-15 flex items-center rounded-sm cursor-pointer ${normalView ? "bg-white" : "bg-purple-700"} transition-all`}
+        >
+          <div
+            className={`w-10 flex items-center justify-center font-bold transition-transform duration-200 text-xl ${
+              normalView ? "-translate-x-1" : "translate-x-6"
+            }`}
+          >
+            {normalView ? "♠️" : "🥃"}
+          </div>
+        </button>
+      </>
+    );
   }
-
 
   return (
     <div className="flex-1 flex justify-center">
@@ -285,6 +331,8 @@ export default function PokerGame({ roomId }: PokerGameProps) {
             []
           }
           activePlayerId={activePlayerId}
+          toggleView={normalView}
+          setToggleView={() => setNormalView((current) => !current)}
         />
         {gameState && <GameStatus gameState={gameState} />}
         {canStartNextHand && roomData.hostId === playerId && (
@@ -338,6 +386,21 @@ export default function PokerGame({ roomId }: PokerGameProps) {
         className="absolute right-20 top-15 rounded-sm bg-white p-2 font-bold text-red-600 hover:bg-red-300"
       >
         Leave
+      </button>
+
+      <button
+        onClick={() => {
+          setNormalView((current) => !current);
+        }}
+        className={`absolute top-15 right-40 w-15 flex items-center rounded-sm cursor-pointer ${normalView ? "bg-white" : "bg-purple-700"} transition-all`}
+      >
+        <div
+          className={`w-10 flex items-center justify-center font-bold transition-transform duration-200 text-xl ${
+            normalView ? "-translate-x-1" : "translate-x-6"
+          }`}
+        >
+          {normalView ? "♠️" : "🥃"}
+        </div>
       </button>
     </div>
   );
