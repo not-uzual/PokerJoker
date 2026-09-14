@@ -2,7 +2,8 @@ import type { GamePhase, PlayerAction, PlayerState } from "./types.js";
 
 export function assertCanStart(players: PlayerState[], phase: GamePhase): void {
   if (phase !== "waiting" && phase !== "finished") throw new Error("A hand has already started");
-  if (players.length < 2) throw new Error("At least 2 players are required");
+  const playersWithChips = players.filter(player => player.chips > 0);
+  if (playersWithChips.length < 2) throw new Error("At least 2 players with chips are required");
 }
 
 export function assertCanAddPlayer(phase: GamePhase, players: PlayerState[], playerId: string): void {

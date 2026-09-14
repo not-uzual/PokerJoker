@@ -1,7 +1,10 @@
 import type { PlayerState } from "./types.js";
 
 export function getCallAmount(player: PlayerState, currentBet: number): number {
-  return Math.max(0, currentBet - player.currentBet);
+  return Math.min(
+    Math.max(0, currentBet - player.currentBet),
+    player.chips,
+  );
 }
 
 export function putChips(player: PlayerState, amount: number): number {

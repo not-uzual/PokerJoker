@@ -255,6 +255,13 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   const canStartNextHand = isWaiting || gameState?.phase === "finished";
 
   function startGame() {
+    const playersWithChips =
+      gameState?.players.filter((player) => player.chips > 0).length ?? 0;
+    if (playersWithChips < 2) {
+      window.alert("At least 2 players with chips are required to start.");
+      return;
+    }
+
     socket.emit("start-game", { roomId, playerId });
   }
 

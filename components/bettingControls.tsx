@@ -35,6 +35,32 @@ export default function BettingControls({
   );
 
   const canCheck = callAmount === 0;
+  const availableChips = Math.max(0, maxBet - playerBet);
+  const canCall = callAmount <= availableChips;
+
+  function submitBet() {
+    if (!canRaise) {
+      window.alert("You cannot raise by that amount. Call or go all-in.");
+      return;
+    }
+
+    const amount = betAmount;
+    if (amount < minimumBet || amount > maxBet) {
+      window.alert(`Raise must be between $${minimumBet} and $${maxBet}.`);
+      return;
+    }
+
+    onBet(amount);
+  }
+
+  function submitAllIn() {
+    if (maxBet <= 0) {
+      window.alert("You do not have chips available for an all-in.");
+      return;
+    }
+
+    onAllIn();
+  }
 
   return (
     <div className="absolute z-20 right-10 bottom-5 rounded-2xl bg-zinc-900 p-4 text-white">
@@ -110,15 +136,20 @@ export default function BettingControls({
         ) : (
           <button
             onClick={onCall}
-            className="rounded-xl bg-blue-600 px-4 py-3 font-bold"
+            disabled={!canCall}
+            className={`rounded-xl px-4 py-3 font-bold ${
+              canCall
+                ? "bg-blue-600"
+                : "cursor-not-allowed bg-zinc-600 text-zinc-400"
+            }`}
           >
             Call ${callAmount}
           </button>
         )}
 
-        {canRaise ? <button onClick={() => onBet(betAmount)} className="rounded-xl bg-green-600 px-4 py-3 font-bold">
+        {canRaise ? <button onClick={submitBet} className="rounded-xl bg-green-600 px-4 py-3 font-bold">
           {currentBet === 0 ? "Bet" : "Raise"} ${betAmount}
-        </button> : <button onClick={onAllIn} className="rounded-xl bg-green-600 px-4 py-3 font-bold">All in</button>}
+        </button> : <button onClick={submitAllIn} className="rounded-xl bg-green-600 px-4 py-3 font-bold">All in</button>}
 
       </div>
     </div>
