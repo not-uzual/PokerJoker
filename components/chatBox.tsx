@@ -122,7 +122,7 @@ export default function ChatBox({
   const historyRef = useRef<HTMLDivElement>(null);
   const latestMessage = history[history.length - 1];
   const latestMessageKey = latestMessage
-    ? `${latestMessage.type}-${latestMessage.entry.createdAt}`
+    ? `${history.length}-${latestMessage.type}-${latestMessage.entry.createdAt}`
     : "empty";
 
   useEffect(() => {
@@ -138,10 +138,10 @@ export default function ChatBox({
         ref={historyRef}
         className="relative max-h-82 space-y-2 overflow-y-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
       >
-        {history.map(({ type, entry }) =>
+        {history.map(({ type, entry }, index) =>
           type === "system" ? (
             <div
-              key={`system-${entry.createdAt}-${entry.playerId}-${entry.action}`}
+              key={`system-${index}-${entry.createdAt}-${entry.playerId}-${entry.action}`}
               className="rounded-sm p-2 text-sm"
             >
               <div>

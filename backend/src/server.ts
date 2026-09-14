@@ -11,6 +11,10 @@ app.use(cors({
   origin: process.env.FRONTEND_URL
 }));
 
+app.get("/health", (_request, response) => {
+  response.status(200).json({ status: "ok" });
+});
+
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {

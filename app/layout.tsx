@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/navbar";
 import { GameProvider } from "@/components/contexts/gameContext";
+import BackendHealthCheck from "@/components/backendHealthCheck";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body className="w-dvw h-dvh flex justify-center items-center overflow-hidden">
+        <BackendHealthCheck />
         <NavBar/>
         <GameProvider>
           {children}

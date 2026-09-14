@@ -14,6 +14,7 @@ import ChatBox, {
   type ReactionMessage,
 } from "./chatBox";
 import reactionSounds from "@/constents/reactions";
+import StartGameAnimation from "./animation.tsx/startGame";
 
 const reactions = [
   "Are you crazy...",
@@ -177,8 +178,14 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   useEffect(() => {
     if (gameState?.phase === "starting") {
       playSound("/startGame.mp3");
+    } else if (gameState?.phase === "preview") {
+      playSound("/timer.mp3");
+    } else if (gameState?.phase === "preflop") {
+      playSound("/gamePreflop.mp3");
+    } else if (gameState?.phase === "finished") {
+      playSound("/gameFinish.mp3");
     }
-  }, [gameState]);
+  }, [gameState?.phase]);
 
   useEffect(() => {
     const checkSize = () => {
@@ -284,7 +291,6 @@ export default function PokerGame({ roomId }: PokerGameProps) {
 
   function sendReaction() {
     if (reactionIndex == -1) return;
-    console.log(reactionIndex);
     socket.emit("send-reaction", { roomId, playerId, reactionIndex });
     const message = `reacted ${reactions[reactionIndex]}`;
     socket.emit("send-chat-message", { roomId, playerId, message });
@@ -322,6 +328,9 @@ export default function PokerGame({ roomId }: PokerGameProps) {
 
   return (
     <div className="flex-1 flex justify-center">
+      {gameState?.phase === "starting" && (
+        <StartGameAnimation />
+      )}
       <div className="relative h-200 w-250 flex justify-center items-center pt-5">
         <PokerTable
           communityCards={gameState?.communityCards ?? []}
