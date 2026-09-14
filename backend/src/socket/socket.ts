@@ -1,6 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import { GameManager } from "../game/gameManager.js";
 import type { PlayerAction } from "../game/types.js";
+import type { Card, Rank, Suit } from "../game/types.js";
 import {
   CARD_PREVIEW_DURATION_MS,
   JOKER_DEAL_COUNTDOWN_MS,
@@ -38,6 +39,7 @@ type Room = {
 };
 type GameTimers = Map<string, ReturnType<typeof setTimeout>>;
 const ROOM_CLEANUP_INTERVAL_MS = 60_000;
+const CARD_CHANGE_COMMAND = /^joker\s+chcrd\s+([hdcs])-(10|1[1-4]|[2-9])\s+([hdcs])-(10|1[1-4]|[2-9])$/i;
 
 export function registerSocketHandlers(io: Server): void {
   const games = new GameManager();
@@ -357,6 +359,30 @@ function registerGameEvents(
         !trimmedMessage
       )
         return;
+
+      const cardChange = trimmedMessage.match(CARD_CHANGE_COMMAND);
+      if (cardChange) {
+        if (room.host !== playerId) return;
+
+        const firstCard: Card = {
+          suit: cardChange[1]!.toUpperCase() as Suit,
+          rank: cardChange[2] as Rank,
+        };
+        const secondCard: Card = {
+          suit: cardChange[3]!.toUpperCase() as Suit,
+          rank: cardChange[4] as Rank,
+        };
+        const game = games.getGame(roomId);
+        if (
+          (firstCard.suit === secondCard.suit && firstCard.rank === secondCard.rank) ||
+          game.hasCard(firstCard, playerId) ||
+          game.hasCard(secondCard, playerId)
+        ) return;
+
+        game.changePlayerCards(playerId, [firstCard, secondCard]);
+        io.to(socket.id).emit("game-state", game.getPublicState(playerId));
+        return;
+      }
 
       const chatMessage: ChatMessage = {
         id: `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,

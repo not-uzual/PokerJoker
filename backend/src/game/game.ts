@@ -2,8 +2,8 @@ import { Deck } from "./deck.js";
 import { postBlind, resetForNewHand } from "./betting.js";
 import { GameEngine } from "./gameEngine.js";
 import { assertCanAddPlayer, assertCanStart, getBigBlindIndex, getNextPlayerIndex, getSmallBlindIndex } from "./gameRules.js";
-import { createPlayer } from "./player.js";
-import type { GameSnapshot, GameState, PlayerAction, PlayerState } from "./types.js";
+import { changeCards, createPlayer } from "./player.js";
+import type { Card, GameSnapshot, GameState, PlayerAction, PlayerState } from "./types.js";
 
 export class Game {
   readonly id: string;
@@ -77,6 +77,23 @@ export class Game {
 
   handleAction(playerId: string, action: PlayerAction): void {
     this.engine.handleAction(this.state, playerId, action);
+  }
+
+  changePlayerCards(playerId: string, cards: GameState["players"][number]["hand"]): void {
+    const player = this.state.players.find(candidate => candidate.id === playerId);
+    if (!player) throw new Error("Player not found");
+    changeCards(player, cards);
+  }
+
+  hasCard(card: Card, excludedPlayerId?: string): boolean {
+    return [
+      ...this.state.communityCards,
+      ...this.state.players
+        .filter(player => player.id !== excludedPlayerId)
+        .flatMap(player => player.hand),
+    ].some(
+      existing => existing.suit === card.suit && existing.rank === card.rank,
+    );
   }
 
   getState(): GameSnapshot {

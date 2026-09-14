@@ -4,6 +4,10 @@ export function createPlayer(id: string, name: string, chips: number): PlayerSta
   return { id, name, chips, hand: [], currentBet: 0, totalBet: 0, folded: false, allIn: false, acted: false };
 }
 
+export function changeCards(player: PlayerState, cards: Card[]): void {
+  player.hand = [...cards];
+}
+
 export class Player {
   public readonly id: string;
   public readonly name: string;
@@ -80,6 +84,10 @@ export class Player {
 
   clearHand(): void {
     this.hand = [];
+  }
+
+  changeCards(cards: Card[]): void {
+    this.hand = [...cards];
   }
 
   // ----------------
