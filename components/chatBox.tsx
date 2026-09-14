@@ -36,8 +36,55 @@ export type ReactionMessage = {
   reactionIndex: number;
 };
 
-function actionText(entry: GameLogEntry): string {
-  if (entry.action === "win") return `won $${entry.amount ?? 0} pot`;
+type DisplayGameLogEntry = GameLogEntry & {
+  amounts?: number[];
+};
+
+function aggregateWinLogs(logs: GameLogEntry[]): DisplayGameLogEntry[] {
+  const result: DisplayGameLogEntry[] = [];
+  let winGroup: DisplayGameLogEntry[] = [];
+
+  const flushWinGroup = () => {
+    const aggregated = new Map<string, DisplayGameLogEntry>();
+
+    for (const entry of winGroup) {
+      const existing = aggregated.get(entry.playerId);
+      if (existing) {
+        existing.amounts?.push(entry.amount ?? 0);
+        existing.amount = (existing.amount ?? 0) + (entry.amount ?? 0);
+        continue;
+      }
+
+      const mergedEntry: DisplayGameLogEntry = {
+        ...entry,
+        amount: entry.amount ?? 0,
+        amounts: [entry.amount ?? 0],
+      };
+      aggregated.set(entry.playerId, mergedEntry);
+      result.push(mergedEntry);
+    }
+
+    winGroup = [];
+  };
+
+  for (const entry of logs) {
+    if (entry.action === "win") {
+      winGroup.push(entry);
+    } else {
+      flushWinGroup();
+      result.push(entry);
+    }
+  }
+  flushWinGroup();
+
+  return result;
+}
+
+function actionText(entry: DisplayGameLogEntry): string {
+  if (entry.action === "win") {
+    const amounts = entry.amounts ?? [entry.amount ?? 0];
+    return `won ${amounts.map((amount) => `$${amount}`).join(" + ")} = $${entry.amount ?? 0} pot`;
+  }
   if (entry.action === "check" || entry.action === "fold") return entry.action;
   if (entry.action === "all-in") return `went all-in for $${entry.amount ?? 0}`;
   return `${entry.action} $${entry.amount ?? 0}`;
@@ -63,7 +110,7 @@ export default function ChatBox({
   onSendReaction: () => void;
 }) {
   const history = [
-    ...logs.map((entry) => ({ type: "system" as const, entry })),
+    ...aggregateWinLogs(logs).map((entry) => ({ type: "system" as const, entry })),
     ...chatMessages.map((entry) => ({
       type:
         entry.kind === "system" ? ("system-chat" as const) : ("chat" as const),

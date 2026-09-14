@@ -142,8 +142,8 @@ export default function PokerTable({
                         ? `${card.suit} ${card.rank}`
                         : "Undealt community card"
                     }
-                    width={50}
-                    height={75}
+                    width={60}
+                    height={85}
                     className="rounded-[3px]"
                     style={{
                       left: position.left > 0 ? position.left : undefined,
