@@ -74,7 +74,7 @@ export default function PokerGuide() {
           aria-label={guide.title}
           className="absolute right-0 top-12 flex max-h-[75dvh] w-[min(90vw,440px)] flex-col overflow-hidden rounded-2xl border border-purple-300/25 bg-zinc-950 text-zinc-100 shadow-2xl shadow-black/60"
         >
-          <header className="flex items-start justify-between gap-4 border-b border-white/10 bg-gradient-to-br from-purple-950 via-zinc-900 to-zinc-950 px-5 py-4">
+          <header className="flex items-start justify-between gap-4 border-b border-white/10 bg-linear-to-br from-purple-950 via-zinc-900 to-zinc-950 px-5 py-4">
             <div>
               <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.24em] text-purple-300">
                 Quick reference · {guide.focus_variant}
@@ -94,7 +94,7 @@ export default function PokerGuide() {
             </button>
           </header>
 
-          <div className="space-y-6 overflow-y-auto px-5 py-5 [scrollbar-width:thin] [scrollbar-color:#71717a_transparent]">
+          <div className="space-y-6 overflow-y-auto px-5 py-5 scrollbar-thin [scrollbar-color:#71717a_transparent]">
             <section className="rounded-xl border border-purple-300/15 bg-purple-950/30 p-4">
               <h3 className="mb-2 text-sm font-bold text-purple-200">The goal</h3>
               <p className="text-sm leading-relaxed text-zinc-300">
@@ -123,7 +123,7 @@ export default function PokerGuide() {
                   ([position, description]) => (
                     <div
                       key={position}
-                      className="rounded-lg bg-white/[0.04] p-3"
+                      className="rounded-lg bg-white/4 p-3"
                     >
                       <p className="text-xs font-bold capitalize text-purple-200">
                         {position.replaceAll("_", " ")}
@@ -147,7 +147,7 @@ export default function PokerGuide() {
                   {guide.game_setup.ante}
                 </p>
               </div>
-              <div className="mt-3 rounded-lg bg-white/[0.04] p-3">
+              <div className="mt-3 rounded-lg bg-white/4 p-3">
                 <h4 className="text-xs font-bold text-purple-200">Card basics</h4>
                 <p className="mt-1 text-xs leading-relaxed text-zinc-400">
                   {guide.equipment.cards}. {guide.equipment.suits_note}
@@ -175,7 +175,7 @@ export default function PokerGuide() {
                 {guide.hand_rankings.rankings.map((hand) => (
                   <li
                     key={hand.rank}
-                    className="flex gap-3 rounded-lg border border-white/5 bg-white/[0.04] p-3"
+                    className="flex gap-3 rounded-lg border border-white/5 bg-white/4 p-3"
                   >
                     <span className="grid size-7 shrink-0 place-items-center rounded-md bg-purple-400/15 text-xs font-black text-purple-200">
                       {hand.rank}
@@ -226,7 +226,7 @@ export default function PokerGuide() {
                 {Object.entries(guide.player_actions).map(([action, detail]) => (
                   <div
                     key={action}
-                    className="rounded-lg border border-white/5 bg-white/[0.04] p-3"
+                    className="rounded-lg border border-white/5 bg-white/4 p-3"
                   >
                     <h4 className="mb-1 text-sm font-bold capitalize text-purple-200">
                       {action.replace("_", " ")}
@@ -250,7 +250,7 @@ export default function PokerGuide() {
                 {guide.betting_structures.map((structure) => (
                   <div
                     key={structure.name}
-                    className="rounded-lg bg-white/[0.04] p-3"
+                    className="rounded-lg bg-white/4 p-3"
                   >
                     <p className="text-sm font-bold text-amber-200">
                       {structure.name}
@@ -276,7 +276,7 @@ export default function PokerGuide() {
               <h3 className="mb-3 text-base font-bold">Key terms</h3>
               <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {guide.key_terms.map(({ term, meaning }) => (
-                  <div key={term} className="rounded-lg bg-white/[0.04] p-3">
+                  <div key={term} className="rounded-lg bg-white/4 p-3">
                     <dt className="text-xs font-bold text-purple-200">{term}</dt>
                     <dd className="mt-1 text-xs leading-relaxed text-zinc-400">
                       {meaning}
@@ -286,7 +286,7 @@ export default function PokerGuide() {
               </dl>
             </section>
 
-            <section className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+            <section className="rounded-xl border border-white/10 bg-white/4 p-4">
               <h3 className="mb-3 text-base font-bold">Example hand</h3>
               <div className="space-y-2 text-xs leading-relaxed text-zinc-300">
                 {Object.entries(guide.example_hand).map(([street, description]) => (
@@ -341,7 +341,7 @@ export default function PokerGuide() {
                 {guide.faq.map(({ question, answer }) => (
                   <details
                     key={question}
-                    className="group rounded-lg bg-white/[0.04] p-3"
+                    className="group rounded-lg bg-white/4 p-3"
                   >
                     <summary className="cursor-pointer list-none text-sm font-semibold marker:hidden">
                       <span className="flex items-center justify-between gap-3">
@@ -365,7 +365,7 @@ export default function PokerGuide() {
                 {guide.variants.map((variant) => (
                   <div
                     key={variant.name}
-                    className="rounded-lg bg-white/[0.04] p-3"
+                    className="rounded-lg bg-white/4 p-3"
                   >
                     <h4 className="text-sm font-bold text-purple-200">
                       {variant.name}

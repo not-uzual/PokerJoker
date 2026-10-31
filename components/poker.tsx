@@ -23,6 +23,7 @@ import {
 } from "@/lib/position";
 import StartGameAnimation from "./animation.tsx/startGame";
 import PokerGuide from "./pokerGuide";
+import PlayerLeaderboard from "./playerLeaderBoard";
 
 const reactions = [
   "Are you crazy...",
@@ -238,7 +239,6 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       setIsJoined(false);
       router.replace("/");
     };
-
     socket.on("game-state", handleGameState);
     socket.on("game-error", handleGameError);
     socket.on("chat-messages", handleChatMessages);
@@ -461,6 +461,9 @@ export default function PokerGame({ roomId }: PokerGameProps) {
         </div>
       </button>
       <PokerGuide />
+        {gameState && (
+          <PlayerLeaderboard players={gameState.players} />
+        )}
     </div>
   );
 }
