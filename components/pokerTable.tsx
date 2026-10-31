@@ -31,7 +31,7 @@ export default function PokerTable({
           <Image
             src={PokerT}
             alt="Poker Table"
-            className="size-[560px]"
+            className="size-140"
             loading="eager"
           />
         )}
