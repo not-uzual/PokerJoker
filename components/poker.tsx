@@ -41,6 +41,11 @@ const reactions = [
   "Happy Happy Happy",
   "Light Yagami Laugh",
   "OOOOHHHHHHHHHHH",
+  "Iss sajjan ko kya taklif...",
+  "App log rona band...",
+  "Ting ling ling ling..",
+  "Music..oooooooooo...",
+  "Hello, I am underwater.."
 ];
 
 type Card = {
