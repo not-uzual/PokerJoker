@@ -26,7 +26,7 @@ export default function PlayerLeaderboard({ players }: PlayerLeaderboardProps) {
   return (
     <aside
       aria-label="Top players by chips"
-      className="absolute left-15 top-40 z-20 w-44 -translate-y-1/2 rounded-xl border border-white/15 bg-zinc-950/90 p-3 text-white shadow-xs shadow-white backdrop-blur-sm"
+      className="absolute left-15 top-40 z-20 w-60 -translate-y-1/2 rounded-xl border border-white/15 bg-zinc-950/90 p-3 text-white shadow-xs shadow-white backdrop-blur-sm"
     >
       <h2 className="mb-3 text-center text-xs font-bold uppercase tracking-[0.18em] text-purple-200">
         Leaderboard
