@@ -2,12 +2,7 @@ import PokerT from "@/public/PokerTable.png";
 import Dealer from "@/public/Dealer.png";
 import CardBack from "@/public/Card.png";
 import Image from "next/image";
-import Player from "./player";
-import {
-  boardCardPositions,
-  playerPositions,
-  playerPositionsNormal,
-} from "@/lib/position";
+import { boardCardPositions } from "@/lib/position";
 
 type Card = {
   suit: "H" | "D" | "C" | "S";
@@ -17,10 +12,7 @@ type Card = {
 type PokerTableProps = {
   communityCards: Card[];
   holeCards: Card[];
-  players: Array<{ playerId: string; name: string; isBankrupt?: boolean }>;
-  activePlayerId?: string;
   toggleView: boolean;
-  setToggleView: () => void;
 };
 
 function cardSource(card: Card): string {
@@ -30,19 +22,16 @@ function cardSource(card: Card): string {
 export default function PokerTable({
   communityCards,
   holeCards,
-  players,
-  activePlayerId,
   toggleView,
-  setToggleView,
 }: PokerTableProps) {
   return (
     <>
-      <div className="flex-1 flex justify-center items-center">
+      <div className="absolute inset-0 flex justify-center items-center">
         {!toggleView && (
           <Image
             src={PokerT}
             alt="Poker Table"
-            className="size-[70dvh]"
+            className="size-[560px]"
             loading="eager"
           />
         )}
@@ -53,40 +42,6 @@ export default function PokerTable({
             className="absolute -z-10 top-3 h-38.5 w-[108.5px]"
           />
         )}
-        {toggleView
-          ? playerPositionsNormal.map((position, index) => {
-              const player = players[index];
-
-              return (
-                <Player
-                  key={player?.playerId ?? `empty-${index}`}
-                  x={position.x}
-                  y={position.y}
-                  name={player?.name}
-                  isOccupied={Boolean(player)}
-                  isBankrupt={player?.isBankrupt ?? false}
-                  isActive={player?.playerId === activePlayerId}
-                  isDealer={false}
-                />
-              );
-            })
-          : playerPositions.map((position, index) => {
-              const player = players[index];
-
-              return (
-                <Player
-                  key={player?.playerId ?? `empty-${index}`}
-                  x={position.x}
-                  y={position.y}
-                  name={player?.name}
-                  isOccupied={Boolean(player)}
-                  isBankrupt={player?.isBankrupt ?? false}
-                  isActive={player?.playerId === activePlayerId}
-                  isDealer={false}
-                />
-              );
-            })}
-
         {toggleView ? (
           <>
             <div className="absolute flex gap-1.5 bg-green-800 p-2 border-2 border-green-900 rounded-sm">

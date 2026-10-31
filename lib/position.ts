@@ -16,12 +16,11 @@ export const playerPositionsNormal = [
   { x: 480, y: 210 },
   { x: 600, y: 210 },
   { x: 720, y: 210 },
-  { x: 290, y: 520 },
-  { x: 410, y: 520 },
-  { x: 530, y: 520 },
-  { x: 650, y: 520 },
+  { x: 290, y: 500 },
+  { x: 410, y: 500 },
+  { x: 530, y: 500 },
+  { x: 650, y: 500 },
 ];
-
 
 
 export const boardCardPositions = [
@@ -31,3 +30,13 @@ export const boardCardPositions = [
   { left: 525 },
   { left: 570 },
 ];
+
+export const gameStatusPostions = {
+  left: 410,
+  top: 200
+}
+
+export const gameStatusPostionsNormal = {
+  left: 410,
+  top: 124
+}

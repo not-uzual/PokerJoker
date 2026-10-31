@@ -1,6 +1,7 @@
 "use client";
 
 import ChipsBox from "@/components/bettingControls";
+import Player from "@/components/player";
 import PokerTable from "@/components/pokerTable";
 import { getPlayerId, getPlayerRoomData } from "@/lib/player";
 import { PLAYER_ACTION_DURATION_SECONDS } from "@/lib/gameConfig";
@@ -14,6 +15,12 @@ import ChatBox, {
   type ReactionMessage,
 } from "./chatBox";
 import reactionSounds from "@/constents/reactions";
+import {
+  gameStatusPostions,
+  gameStatusPostionsNormal,
+  playerPositions,
+  playerPositionsNormal,
+} from "@/lib/position";
 import StartGameAnimation from "./animation.tsx/startGame";
 
 const reactions = [
@@ -30,7 +37,7 @@ const reactions = [
   "Imposter",
   "Doraemon",
   "Happy Happy Happy",
-  "Light Yagami Laught",
+  "Light Yagami Laugh",
   "OOOOHHHHHHHHHHH"
 ];
 
@@ -77,7 +84,13 @@ type Player = {
   allIn: boolean;
 };
 
-function GameStatus({ gameState }: { gameState: GameState }) {
+function GameStatus({
+  gameState,
+  position,
+}: {
+  gameState: GameState;
+  position: { left: number; top: number };
+}) {
   const [now, setNow] = useState(0);
 
   useEffect(() => {
@@ -94,7 +107,10 @@ function GameStatus({ gameState }: { gameState: GameState }) {
     : null;
 
   return (
-    <div className="absolute top-31 z-20 rounded-xl bg-zinc-900 px-4 py-2 text-center text-white">
+    <div
+      className="absolute z-20 rounded-xl bg-zinc-900 px-4 py-2 text-center text-white"
+      style={{ left: position.left, top: position.top }}
+    >
       <div className="font-semibold">{gameState.phase.toUpperCase()}</div>
       {gameState.phase === "waiting" ? (
         <div className="text-sm text-zinc-300">
@@ -175,6 +191,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   const screenMinH = normalView ? 600 : 800;
   const screenMinW = normalView ? 800 : 1000;
 
+
   useEffect(() => {
     if (gameState?.phase === "starting") {
       playSound("/startGame.mp3");
@@ -253,6 +270,21 @@ export default function PokerGame({ roomId }: PokerGameProps) {
     activePlayerId === playerId;
   const isWaiting = gameState?.phase === "waiting";
   const canStartNextHand = isWaiting || gameState?.phase === "finished";
+  const seatPlayers =
+    gameState?.players.map((player) => ({
+      playerId: player.id,
+      name: player.name,
+      isBankrupt: player.chips === 0,
+    })) ??
+    roomData.players?.map((player) => ({
+      ...player,
+      isBankrupt: false,
+    })) ??
+    [];
+  const seatPositions = normalView ? playerPositionsNormal : playerPositions;
+  const gameStatusPosition = normalView
+    ? gameStatusPostionsNormal
+    : gameStatusPostions;
 
   function startGame() {
     const playersWithChips =
@@ -338,24 +370,31 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       {gameState?.phase === "starting" && (
         <StartGameAnimation />
       )}
-      <div className="relative h-200 w-250 flex justify-center items-center pt-5">
+      <div className="relative h-200 w-250 shrink-0">
+        {seatPositions.map((position, index) => {
+          const player = seatPlayers[index];
+
+          return (
+            <Player
+              key={player?.playerId ?? `empty-${index}`}
+              x={position.x}
+              y={position.y}
+              name={player?.name}
+              isOccupied={Boolean(player)}
+              isBankrupt={player?.isBankrupt ?? false}
+              isActive={player?.playerId === activePlayerId}
+              isDealer={false}
+            />
+          );
+        })}
         <PokerTable
           communityCards={gameState?.communityCards ?? []}
           holeCards={me?.hand ?? []}
-          players={
-            gameState?.players.map((player) => ({
-              playerId: player.id,
-              name: player.name,
-              isBankrupt: player.chips === 0,
-            })) ??
-            roomData.players ??
-            []
-          }
-          activePlayerId={activePlayerId}
           toggleView={normalView}
-          setToggleView={() => setNormalView((current) => !current)}
         />
-        {gameState && <GameStatus gameState={gameState} />}
+        {gameState && (
+          <GameStatus gameState={gameState} position={gameStatusPosition} />
+        )}
         {canStartNextHand && roomData.hostId === playerId && (
           <button
             type="button"
