@@ -39,7 +39,7 @@ export default function PokerTable({
           <Image
             src={Dealer}
             alt="Dealer"
-            className="absolute -z-10 top-3 h-38.5 w-[108.5px]"
+            className="absolute -z-10 top-0 h-38.5 w-[108.5px]"
           />
         )}
         {toggleView ? (

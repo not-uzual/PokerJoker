@@ -44,7 +44,7 @@ export default function Player({
         />
       )}
       <span className="absolute -bottom-6 max-w-28 truncate text-xs font-bold text-white">
-        {name ?? "Empty"}
+        {name ?? "No Player"}
       </span>
       {isDealer && <span className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-white text-xs font-black text-black">D</span>}
     </div>

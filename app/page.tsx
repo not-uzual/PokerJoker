@@ -210,7 +210,7 @@ export default function Home() {
       <div className="flex-1 flex justify-center text-black">
         <div className="h-150 w-200 flex flex-col items-center bg-white gap-2.5 py-2 rounded-lg">
           <div className="flex flex-col items-center gap-1">
-            <p className="font-joker text-6xl">pokerjoker</p>
+            <p className="font-joker text-6xl text-purple-600 ">pokerjoker</p>
             <span
               role="button"
               tabIndex={0}
@@ -242,7 +242,7 @@ export default function Home() {
             </span>
           </div>
 
-          <div className="flex h-fit w-fit items-start justify-center gap-4 px-4 py-4 bg-purple-400 rounded-lg">
+          <div className="flex h-fit w-fit items-start justify-center gap-4 px-4 py-4 border-t-4 border-purple-600">
             <div className="flex w-60 shrink-0 flex-col items-center justify-center gap-2.5 border-2 py-2 rounded-lg">
               <p className="text-xl font-semibold">Create Room</p>
               <input

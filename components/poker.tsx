@@ -22,6 +22,7 @@ import {
   playerPositionsNormal,
 } from "@/lib/position";
 import StartGameAnimation from "./animation.tsx/startGame";
+import PokerGuide from "./pokerGuide";
 
 const reactions = [
   "Are you crazy...",
@@ -38,7 +39,7 @@ const reactions = [
   "Doraemon",
   "Happy Happy Happy",
   "Light Yagami Laugh",
-  "OOOOHHHHHHHHHHH"
+  "OOOOHHHHHHHHHHH",
 ];
 
 type Card = {
@@ -190,7 +191,6 @@ export default function PokerGame({ roomId }: PokerGameProps) {
   const [normalView, setNormalView] = useState(true);
   const screenMinH = normalView ? 600 : 800;
   const screenMinW = normalView ? 800 : 1000;
-
 
   useEffect(() => {
     if (gameState?.phase === "starting") {
@@ -367,9 +367,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
 
   return (
     <div className="flex-1 flex justify-center">
-      {gameState?.phase === "starting" && (
-        <StartGameAnimation />
-      )}
+      {gameState?.phase === "starting" && <StartGameAnimation />}
       <div className="relative h-200 w-250 shrink-0">
         {seatPositions.map((position, index) => {
           const player = seatPlayers[index];
@@ -399,7 +397,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
           <button
             type="button"
             onClick={startGame}
-            className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-xl bg-black px-6 py-3 font-bold text-white"
+            className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-xl bg-black px-6 py-3 font-bold text-white cursor-pointer"
           >
             {gameState?.phase === "finished" ? "Start next hand" : "Start game"}
           </button>
@@ -443,7 +441,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
       <button
         type="button"
         onClick={leaveRoom}
-        className="absolute right-20 top-15 rounded-sm bg-white p-2 font-bold text-red-600 hover:bg-red-300"
+        className="absolute right-20 top-15 rounded-sm bg-white p-2 font-bold text-red-600 hover:bg-red-300 cursor-pointer"
       >
         Leave
       </button>
@@ -462,6 +460,7 @@ export default function PokerGame({ roomId }: PokerGameProps) {
           {normalView ? "♠️" : "🥃"}
         </div>
       </button>
+      <PokerGuide />
     </div>
   );
 }
